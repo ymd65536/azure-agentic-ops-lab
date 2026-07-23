@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks\AgentRuntime\AgentRuntime.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\Contracts\Contracts.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\Observability\Observability.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\Safety\Safety.csproj" />
+    <ProjectReference Include="..\ExecutionService\ExecutionService.csproj" />
+    <ProjectReference Include="..\IncidentWorkflow\IncidentWorkflow.csproj" />
+    <ProjectReference Include="..\RuleEvaluator\RuleEvaluator.csproj" />
+    <ProjectReference Include="..\Tier1SreAgent\Tier1SreAgent.csproj" />
+    <ProjectReference Include="..\Tier2SreAgent\Tier2SreAgent.csproj" />
+    <ProjectReference Include="..\VerificationService\VerificationService.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\prompts\**" LinkBase="prompts" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\knowledge\**" LinkBase="knowledge" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <RootNamespace>AzureAgenticOps.IncidentApi</RootNamespace>
+    <AssemblyName>AzureAgenticOps.IncidentApi</AssemblyName>
+  </PropertyGroup>
+
+</Project>

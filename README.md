@@ -24,11 +24,12 @@ Detect → Classify → Investigate → Escalate → Plan → Approve → Execut
 * VerificationService（`src/VerificationService`）— 決定的な検証チェックの集約（全チェック合格で passed、チェックなしは inconclusive）
 * ScribeService（`src/ScribeService`）— 重複イベント耐性のあるタイムライン構築と、構造化イベントからの決定的なポストインシデントレコード生成
 * Observability 基盤（`src/BuildingBlocks/Observability`）— OpenTelemetry 互換の ActivitySource / Meter、相関タグ規約（incident.id、correlation.id 等）、AGENTS.md §13 の推奨メトリクス一式
+* IncidentApi ホスト（`src/IncidentApi`）— インシデント受付・状態照会・承認外部イベント・ヘルスチェックを提供する ASP.NET Core 最小 API。全ライブラリを DI で結線し、決定的スタブモデルクライアントでワークフロー全体をローカル実行可能。Dapr サイドカー経由の `incident-pubsub` ライフサイクルイベント発行（無効時は no-op）
 * プロンプト資産（`prompts/`）と Insights ナレッジフィクスチャ（`knowledge/`）
 * 固定シナリオ（`scenarios/`）— Scenario 001〜003
-* テスト（`tests/UnitTests`、`tests/ContractTests`、`tests/WorkflowTests`）
+* テスト（`tests/UnitTests`、`tests/ContractTests`、`tests/WorkflowTests`、`tests/IntegrationTests`）
 
-Dapr、Kubernetes、Azure リソース、実 LLM API は **このMilestoneでは使用しません**。
+Kubernetes、Azure リソース、実 LLM API は **このMilestoneでは使用しません**。Dapr Pub/Sub 発行はオプトイン（`Dapr:Enabled`）です。
 
 ## 必要環境
 
@@ -50,6 +51,47 @@ dotnet test
 
 すべてのテストはネットワークや外部サービスなしで実行できます。
 シナリオファイルはテストがリポジトリの `scenarios/` から直接読み込みます。
+`tests/IntegrationTests` は IncidentApi ホストをインメモリで起動し、HTTP 経由でシナリオをエンドツーエンドに実行します。
+
+## IncidentApi のローカル実行
+
+```bash
+dotnet run --project src/IncidentApi
+```
+
+実 LLM の代わりに決定的スタブモデルクライアント（ルールカタログとポリシーから正当な構造化出力を合成）を使用するため、外部依存なしで全ワークフローを実行できます。
+
+| エンドポイント | 説明 |
+| --- | --- |
+| `POST /incidents` | インシデントと証拠（モックデータ）を受け付け、ワークフローを開始（重複 ID は 409） |
+| `GET /incidents/{incidentId}` | ワークフローの現在状態と最終結果を照会 |
+| `POST /incidents/{incidentId}/approval` | 人間の承認/却下を外部イベントとして送達（HTTP リクエストは保持しない） |
+| `POST /demo/verification` | デモ専用: モック検証ランナーが報告する実測値を設定 |
+| `GET /healthz` / `GET /readyz` | liveness / readiness |
+
+シナリオ 001 の例:
+
+```bash
+# 検証ターゲットを healthy に設定（復旧後の検証を成功させる）
+curl -X POST localhost:5000/demo/verification \
+  -H 'Content-Type: application/json' \
+  -d '{"target":"demo/deployment/sample-api","actualValue":"healthy"}'
+
+# インシデントを送信（evidence はシナリオの evidence/*.json の配列）
+curl -X POST localhost:5000/incidents \
+  -H 'Content-Type: application/json' \
+  -d "{\"incident\": $(cat scenarios/001-known-routing-error/incident.json), \"evidence\": [$(cat scenarios/001-known-routing-error/evidence/*.json | paste -sd, -)]}"
+
+# AwaitingApproval になったら承認イベントを送達
+curl -X POST localhost:5000/incidents/inc-001/approval \
+  -H 'Content-Type: application/json' \
+  -d '{"outcome":"approved","approver":"sre-lead","reason":"known pattern"}'
+
+# 状態を確認
+curl localhost:5000/incidents/inc-001
+```
+
+Dapr サイドカーと併用する場合は `Dapr:Enabled=true` を設定すると、全ライフサイクルイベントが論理コンポーネント `incident-pubsub` のトピック `incident-lifecycle` に発行されます（サイドカー不達でも復旧パスは停止しません）。
 
 ## シナリオの追加方法
 
@@ -83,13 +125,15 @@ dotnet test
 
 * **計装は SDK 非依存**: `BuildingBlocks/Observability` は `System.Diagnostics` プリミティブ（`ActivitySource` / `Meter`）のみに依存し、OpenTelemetry SDK やエクスポータはホスト側で登録します。インシデント ID などの高カーディナリティ値はスパン・ログのみに付与し、メトリクスラベルには使用しません。
 
+* **スタブモデルも安全境界の内側**: `DeterministicStubModelClient` はルールカタログとポリシー評価から構造化出力を合成するため、許可リスト外のアクションを提案できません。承認が必要なアクションを Tier 1 の高速パスに載せず、Tier 2（承認付き）へ決定的にエスカレーションします。実 LLM への差し替えは `IAgentModelClient` の実装交換のみで行えます。
+
 ## 未実装の機能（今後のMilestone）
 
-* Dapr Workflow ホスティング（現在の `IncidentWorkflow` オーケストレータを Dapr Workflow 上で実行）
-* Dapr Service Invocation / Pub/Sub（`ILifecycleEventPublisher` / `IIncidentWorkflowActivities` の Dapr 実装）
-* IncidentApi
-* ExecutionService / VerificationService / ScribeService の Dapr サービスホスト化（現在はライブラリ実装のみ）
-* 実 LLM（Azure OpenAI / Microsoft Foundry）接続
+* Dapr Workflow ホスティング（現在の `IncidentWorkflow` オーケストレータを Dapr Workflow 上で実行。現在は IncidentApi ホスト内のインプロセス実行）
+* Dapr Service Invocation（`IIncidentWorkflowActivities` の Dapr サービス呼び出し実装。ライフサイクル Pub/Sub 発行は実装済み）
+* ExecutionService / VerificationService / ScribeService の独立 Dapr サービスホスト化（現在は IncidentApi 内でインプロセス結線）
+* Scribe の Pub/Sub 購読（`incident-lifecycle` トピックの消費）
+* 実 LLM（Azure OpenAI / Microsoft Foundry）接続（現在は決定的スタブモデルクライアント）
 * OpenTelemetry SDK / エクスポータのホスト登録（計装ライブラリは実装済み）
 * Kubernetes マニフェスト、k3d/kind ブートストラップ、AKS デプロイ
 
