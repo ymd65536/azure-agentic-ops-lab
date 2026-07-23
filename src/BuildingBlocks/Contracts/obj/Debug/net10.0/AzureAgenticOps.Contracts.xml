@@ -1,0 +1,653 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>AzureAgenticOps.Contracts</name>
+    </assembly>
+    <members>
+        <member name="T:AzureAgenticOps.Contracts.ContractSerialization">
+            <summary>
+            Provides the canonical <see cref="T:System.Text.Json.JsonSerializerOptions"/> used for all public contracts.
+            Serialization behavior is explicit so that JSON output stays stable across releases:
+            camelCase property names, string enum values, and omission of null values.
+            </summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.ContractSerialization.Options">
+            <summary>Gets the canonical serializer options for contract JSON.</summary>
+        </member>
+        <member name="M:AzureAgenticOps.Contracts.ContractSerialization.Serialize``1(``0)">
+            <summary>Serializes a contract to canonical JSON.</summary>
+            <typeparam name="T">The contract type.</typeparam>
+            <param name="value">The contract instance.</param>
+            <returns>The canonical JSON representation.</returns>
+        </member>
+        <member name="M:AzureAgenticOps.Contracts.ContractSerialization.Deserialize``1(System.String)">
+            <summary>Deserializes canonical contract JSON.</summary>
+            <typeparam name="T">The contract type.</typeparam>
+            <param name="json">The JSON text.</param>
+            <returns>The deserialized contract.</returns>
+            <exception cref="T:System.Text.Json.JsonException">The JSON is not valid for the contract.</exception>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.IncidentClassification">
+            <summary>
+            Classification of an incident after rule evaluation or Tier 1 investigation.
+            </summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.IncidentClassification.Known">
+            <summary>The incident matches a known operational pattern.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.IncidentClassification.Unknown">
+            <summary>The incident does not match any known operational pattern.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.IncidentClassification.Ambiguous">
+            <summary>The incident partially matches one or more patterns and requires deeper analysis.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.AgentDisposition">
+            <summary>
+            The disposition recommended by an agent or the rule evaluator.
+            </summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.AgentDisposition.Resolve">
+            <summary>The incident can be resolved with an approved deterministic action.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.AgentDisposition.Escalate">
+            <summary>The incident must be escalated to the next tier.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.AgentDisposition.RequestMoreEvidence">
+            <summary>More evidence is required before a decision can be made.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.RiskLevel">
+            <summary>
+            The risk level assigned to a remediation action or plan.
+            </summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.RiskLevel.Low">
+            <summary>Low-risk action, such as collecting diagnostics or restarting a demo workload.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.RiskLevel.Medium">
+            <summary>Medium-risk action requiring approval by default.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.RiskLevel.High">
+            <summary>High-risk action rejected in the initial implementation.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.ExecutionOutcome">
+            <summary>
+            The outcome of executing a remediation action.
+            </summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.ExecutionOutcome.Succeeded">
+            <summary>The action completed successfully.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.ExecutionOutcome.Failed">
+            <summary>The action failed during execution.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.ExecutionOutcome.Rejected">
+            <summary>The action was rejected by policy before execution.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.ExecutionOutcome.Skipped">
+            <summary>The action was skipped, for example because of idempotency.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.VerificationOutcome">
+            <summary>
+            The outcome of a verification pass.
+            </summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.VerificationOutcome.Passed">
+            <summary>All verification steps passed.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.VerificationOutcome.Failed">
+            <summary>One or more verification steps failed.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.VerificationOutcome.Inconclusive">
+            <summary>Verification could not produce a definitive result.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.Incident">
+            <summary>
+            A detected operational incident submitted to the system.
+            </summary>
+            <param name="SchemaVersion">The contract schema version.</param>
+            <param name="IncidentId">The unique identifier of the incident.</param>
+            <param name="Title">A short human-readable title.</param>
+            <param name="Description">A description of the observed problem.</param>
+            <param name="Source">The system or monitor that detected the incident.</param>
+            <param name="Severity">The reported severity, for example "sev1".</param>
+            <param name="AffectedServices">The services believed to be affected.</param>
+            <param name="DetectedAt">The time the incident was detected.</param>
+            <param name="Metadata">Additional string metadata supplied by the source.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Contracts.Incident.#ctor(System.String,System.String,System.String,System.String,System.String,System.String,System.Collections.Generic.IReadOnlyList{System.String},System.DateTimeOffset,System.Collections.Generic.IReadOnlyDictionary{System.String,System.String})">
+            <summary>
+            A detected operational incident submitted to the system.
+            </summary>
+            <param name="SchemaVersion">The contract schema version.</param>
+            <param name="IncidentId">The unique identifier of the incident.</param>
+            <param name="Title">A short human-readable title.</param>
+            <param name="Description">A description of the observed problem.</param>
+            <param name="Source">The system or monitor that detected the incident.</param>
+            <param name="Severity">The reported severity, for example "sev1".</param>
+            <param name="AffectedServices">The services believed to be affected.</param>
+            <param name="DetectedAt">The time the incident was detected.</param>
+            <param name="Metadata">Additional string metadata supplied by the source.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.Incident.SchemaVersion">
+            <summary>The contract schema version.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.Incident.IncidentId">
+            <summary>The unique identifier of the incident.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.Incident.Title">
+            <summary>A short human-readable title.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.Incident.Description">
+            <summary>A description of the observed problem.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.Incident.Source">
+            <summary>The system or monitor that detected the incident.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.Incident.Severity">
+            <summary>The reported severity, for example "sev1".</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.Incident.AffectedServices">
+            <summary>The services believed to be affected.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.Incident.DetectedAt">
+            <summary>The time the incident was detected.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.Incident.Metadata">
+            <summary>Additional string metadata supplied by the source.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.IncidentEvidence">
+            <summary>
+            A single piece of evidence associated with an incident, such as a log excerpt,
+            a metric snapshot, or deployment metadata.
+            </summary>
+            <param name="SchemaVersion">The contract schema version.</param>
+            <param name="EvidenceId">The unique identifier of this evidence item.</param>
+            <param name="IncidentId">The incident this evidence belongs to.</param>
+            <param name="EvidenceType">The kind of evidence, for example "log", "metric", "config", or "deployment".</param>
+            <param name="Source">Where the evidence was collected from.</param>
+            <param name="Content">The evidence payload as text.</param>
+            <param name="CollectedAt">The time the evidence was collected.</param>
+            <param name="Attributes">Additional string attributes describing the evidence.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Contracts.IncidentEvidence.#ctor(System.String,System.String,System.String,System.String,System.String,System.String,System.DateTimeOffset,System.Collections.Generic.IReadOnlyDictionary{System.String,System.String})">
+            <summary>
+            A single piece of evidence associated with an incident, such as a log excerpt,
+            a metric snapshot, or deployment metadata.
+            </summary>
+            <param name="SchemaVersion">The contract schema version.</param>
+            <param name="EvidenceId">The unique identifier of this evidence item.</param>
+            <param name="IncidentId">The incident this evidence belongs to.</param>
+            <param name="EvidenceType">The kind of evidence, for example "log", "metric", "config", or "deployment".</param>
+            <param name="Source">Where the evidence was collected from.</param>
+            <param name="Content">The evidence payload as text.</param>
+            <param name="CollectedAt">The time the evidence was collected.</param>
+            <param name="Attributes">Additional string attributes describing the evidence.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentEvidence.SchemaVersion">
+            <summary>The contract schema version.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentEvidence.EvidenceId">
+            <summary>The unique identifier of this evidence item.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentEvidence.IncidentId">
+            <summary>The incident this evidence belongs to.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentEvidence.EvidenceType">
+            <summary>The kind of evidence, for example "log", "metric", "config", or "deployment".</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentEvidence.Source">
+            <summary>Where the evidence was collected from.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentEvidence.Content">
+            <summary>The evidence payload as text.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentEvidence.CollectedAt">
+            <summary>The time the evidence was collected.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentEvidence.Attributes">
+            <summary>Additional string attributes describing the evidence.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.AgentHypothesis">
+            <summary>
+            A hypothesis produced during investigation, with supporting evidence references.
+            </summary>
+            <param name="Description">The hypothesis statement.</param>
+            <param name="Confidence">Confidence in the hypothesis, from 0.0 to 1.0.</param>
+            <param name="EvidenceIds">Identifiers of the evidence items supporting the hypothesis.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Contracts.AgentHypothesis.#ctor(System.String,System.Double,System.Collections.Generic.IReadOnlyList{System.String})">
+            <summary>
+            A hypothesis produced during investigation, with supporting evidence references.
+            </summary>
+            <param name="Description">The hypothesis statement.</param>
+            <param name="Confidence">Confidence in the hypothesis, from 0.0 to 1.0.</param>
+            <param name="EvidenceIds">Identifiers of the evidence items supporting the hypothesis.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.AgentHypothesis.Description">
+            <summary>The hypothesis statement.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.AgentHypothesis.Confidence">
+            <summary>Confidence in the hypothesis, from 0.0 to 1.0.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.AgentHypothesis.EvidenceIds">
+            <summary>Identifiers of the evidence items supporting the hypothesis.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.InvestigationResult">
+            <summary>
+            The structured result of a Tier 1 investigation or rule evaluation handoff.
+            </summary>
+            <param name="SchemaVersion">The contract schema version.</param>
+            <param name="IncidentId">The incident this result belongs to.</param>
+            <param name="Classification">The classification of the incident.</param>
+            <param name="Summary">A concise summary of the investigation.</param>
+            <param name="Observations">Observable facts derived from evidence.</param>
+            <param name="Hypotheses">Candidate root-cause hypotheses.</param>
+            <param name="Confidence">Overall confidence in the result, from 0.0 to 1.0.</param>
+            <param name="RecommendedDisposition">The recommended next step.</param>
+            <param name="ProposedAction">A proposed remediation action, if a known deterministic action applies.</param>
+            <param name="MissingEvidence">Evidence that would improve the assessment.</param>
+            <param name="ReasoningSummary">A concise explanation based on observable evidence only.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Contracts.InvestigationResult.#ctor(System.String,System.String,AzureAgenticOps.Contracts.IncidentClassification,System.String,System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IReadOnlyList{AzureAgenticOps.Contracts.AgentHypothesis},System.Double,AzureAgenticOps.Contracts.AgentDisposition,AzureAgenticOps.Contracts.RemediationAction,System.Collections.Generic.IReadOnlyList{System.String},System.String)">
+            <summary>
+            The structured result of a Tier 1 investigation or rule evaluation handoff.
+            </summary>
+            <param name="SchemaVersion">The contract schema version.</param>
+            <param name="IncidentId">The incident this result belongs to.</param>
+            <param name="Classification">The classification of the incident.</param>
+            <param name="Summary">A concise summary of the investigation.</param>
+            <param name="Observations">Observable facts derived from evidence.</param>
+            <param name="Hypotheses">Candidate root-cause hypotheses.</param>
+            <param name="Confidence">Overall confidence in the result, from 0.0 to 1.0.</param>
+            <param name="RecommendedDisposition">The recommended next step.</param>
+            <param name="ProposedAction">A proposed remediation action, if a known deterministic action applies.</param>
+            <param name="MissingEvidence">Evidence that would improve the assessment.</param>
+            <param name="ReasoningSummary">A concise explanation based on observable evidence only.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.InvestigationResult.SchemaVersion">
+            <summary>The contract schema version.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.InvestigationResult.IncidentId">
+            <summary>The incident this result belongs to.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.InvestigationResult.Classification">
+            <summary>The classification of the incident.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.InvestigationResult.Summary">
+            <summary>A concise summary of the investigation.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.InvestigationResult.Observations">
+            <summary>Observable facts derived from evidence.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.InvestigationResult.Hypotheses">
+            <summary>Candidate root-cause hypotheses.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.InvestigationResult.Confidence">
+            <summary>Overall confidence in the result, from 0.0 to 1.0.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.InvestigationResult.RecommendedDisposition">
+            <summary>The recommended next step.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.InvestigationResult.ProposedAction">
+            <summary>A proposed remediation action, if a known deterministic action applies.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.InvestigationResult.MissingEvidence">
+            <summary>Evidence that would improve the assessment.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.InvestigationResult.ReasoningSummary">
+            <summary>A concise explanation based on observable evidence only.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.ActionTarget">
+            <summary>
+            The target of a remediation action.
+            </summary>
+            <param name="Namespace">The Kubernetes namespace or logical environment of the target.</param>
+            <param name="ResourceType">The type of the target resource, for example "deployment".</param>
+            <param name="ResourceName">The name of the target resource.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Contracts.ActionTarget.#ctor(System.String,System.String,System.String)">
+            <summary>
+            The target of a remediation action.
+            </summary>
+            <param name="Namespace">The Kubernetes namespace or logical environment of the target.</param>
+            <param name="ResourceType">The type of the target resource, for example "deployment".</param>
+            <param name="ResourceName">The name of the target resource.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.ActionTarget.Namespace">
+            <summary>The Kubernetes namespace or logical environment of the target.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.ActionTarget.ResourceType">
+            <summary>The type of the target resource, for example "deployment".</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.ActionTarget.ResourceName">
+            <summary>The name of the target resource.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.RemediationAction">
+            <summary>
+            A single structured remediation action. Actions reference predefined action
+            types only; arbitrary commands cannot be represented.
+            </summary>
+            <param name="ActionType">The predefined action type name.</param>
+            <param name="Target">The target of the action.</param>
+            <param name="Parameters">Named string parameters for the action.</param>
+            <param name="IdempotencyKey">A key that makes repeated execution requests idempotent.</param>
+            <param name="MaxExecutionCount">The maximum number of times this action may be executed.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Contracts.RemediationAction.#ctor(System.String,AzureAgenticOps.Contracts.ActionTarget,System.Collections.Generic.IReadOnlyDictionary{System.String,System.String},System.String,System.Int32)">
+            <summary>
+            A single structured remediation action. Actions reference predefined action
+            types only; arbitrary commands cannot be represented.
+            </summary>
+            <param name="ActionType">The predefined action type name.</param>
+            <param name="Target">The target of the action.</param>
+            <param name="Parameters">Named string parameters for the action.</param>
+            <param name="IdempotencyKey">A key that makes repeated execution requests idempotent.</param>
+            <param name="MaxExecutionCount">The maximum number of times this action may be executed.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationAction.ActionType">
+            <summary>The predefined action type name.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationAction.Target">
+            <summary>The target of the action.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationAction.Parameters">
+            <summary>Named string parameters for the action.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationAction.IdempotencyKey">
+            <summary>A key that makes repeated execution requests idempotent.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationAction.MaxExecutionCount">
+            <summary>The maximum number of times this action may be executed.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.VerificationStep">
+            <summary>
+            A single verification step used to confirm remediation success.
+            </summary>
+            <param name="CheckType">The kind of check, for example "HttpStatus" or "PodReady".</param>
+            <param name="Target">The target of the check.</param>
+            <param name="ExpectedValue">The expected result value as text.</param>
+            <param name="TimeoutSeconds">The maximum time allowed for the check.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Contracts.VerificationStep.#ctor(System.String,System.String,System.String,System.Int32)">
+            <summary>
+            A single verification step used to confirm remediation success.
+            </summary>
+            <param name="CheckType">The kind of check, for example "HttpStatus" or "PodReady".</param>
+            <param name="Target">The target of the check.</param>
+            <param name="ExpectedValue">The expected result value as text.</param>
+            <param name="TimeoutSeconds">The maximum time allowed for the check.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.VerificationStep.CheckType">
+            <summary>The kind of check, for example "HttpStatus" or "PodReady".</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.VerificationStep.Target">
+            <summary>The target of the check.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.VerificationStep.ExpectedValue">
+            <summary>The expected result value as text.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.VerificationStep.TimeoutSeconds">
+            <summary>The maximum time allowed for the check.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.RemediationPlan">
+            <summary>
+            A structured remediation plan produced by Tier 2 investigation.
+            </summary>
+            <param name="SchemaVersion">The contract schema version.</param>
+            <param name="IncidentId">The incident this plan addresses.</param>
+            <param name="Summary">A concise summary of the plan.</param>
+            <param name="RootCauseHypothesis">The most likely root cause.</param>
+            <param name="RiskLevel">The overall risk level of the plan.</param>
+            <param name="RequiresApproval">Whether human approval is required before execution.</param>
+            <param name="Actions">The ordered remediation actions.</param>
+            <param name="Verification">The verification steps to run after execution.</param>
+            <param name="Rollback">The rollback actions, when rollback is possible.</param>
+            <param name="ReasoningSummary">A concise explanation based on observable evidence only.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Contracts.RemediationPlan.#ctor(System.String,System.String,System.String,AzureAgenticOps.Contracts.AgentHypothesis,AzureAgenticOps.Contracts.RiskLevel,System.Boolean,System.Collections.Generic.IReadOnlyList{AzureAgenticOps.Contracts.RemediationAction},System.Collections.Generic.IReadOnlyList{AzureAgenticOps.Contracts.VerificationStep},System.Collections.Generic.IReadOnlyList{AzureAgenticOps.Contracts.RemediationAction},System.String)">
+            <summary>
+            A structured remediation plan produced by Tier 2 investigation.
+            </summary>
+            <param name="SchemaVersion">The contract schema version.</param>
+            <param name="IncidentId">The incident this plan addresses.</param>
+            <param name="Summary">A concise summary of the plan.</param>
+            <param name="RootCauseHypothesis">The most likely root cause.</param>
+            <param name="RiskLevel">The overall risk level of the plan.</param>
+            <param name="RequiresApproval">Whether human approval is required before execution.</param>
+            <param name="Actions">The ordered remediation actions.</param>
+            <param name="Verification">The verification steps to run after execution.</param>
+            <param name="Rollback">The rollback actions, when rollback is possible.</param>
+            <param name="ReasoningSummary">A concise explanation based on observable evidence only.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationPlan.SchemaVersion">
+            <summary>The contract schema version.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationPlan.IncidentId">
+            <summary>The incident this plan addresses.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationPlan.Summary">
+            <summary>A concise summary of the plan.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationPlan.RootCauseHypothesis">
+            <summary>The most likely root cause.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationPlan.RiskLevel">
+            <summary>The overall risk level of the plan.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationPlan.RequiresApproval">
+            <summary>Whether human approval is required before execution.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationPlan.Actions">
+            <summary>The ordered remediation actions.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationPlan.Verification">
+            <summary>The verification steps to run after execution.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationPlan.Rollback">
+            <summary>The rollback actions, when rollback is possible.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.RemediationPlan.ReasoningSummary">
+            <summary>A concise explanation based on observable evidence only.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.ExecutionResult">
+            <summary>
+            The result of executing a single remediation action.
+            </summary>
+            <param name="SchemaVersion">The contract schema version.</param>
+            <param name="IncidentId">The incident the action belongs to.</param>
+            <param name="ActionType">The executed action type.</param>
+            <param name="IdempotencyKey">The idempotency key of the execution request.</param>
+            <param name="Outcome">The execution outcome.</param>
+            <param name="Message">A human-readable description of the outcome.</param>
+            <param name="AttemptNumber">The attempt number of this execution, starting at 1.</param>
+            <param name="StartedAt">When execution started.</param>
+            <param name="CompletedAt">When execution completed.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Contracts.ExecutionResult.#ctor(System.String,System.String,System.String,System.String,AzureAgenticOps.Contracts.ExecutionOutcome,System.String,System.Int32,System.DateTimeOffset,System.DateTimeOffset)">
+            <summary>
+            The result of executing a single remediation action.
+            </summary>
+            <param name="SchemaVersion">The contract schema version.</param>
+            <param name="IncidentId">The incident the action belongs to.</param>
+            <param name="ActionType">The executed action type.</param>
+            <param name="IdempotencyKey">The idempotency key of the execution request.</param>
+            <param name="Outcome">The execution outcome.</param>
+            <param name="Message">A human-readable description of the outcome.</param>
+            <param name="AttemptNumber">The attempt number of this execution, starting at 1.</param>
+            <param name="StartedAt">When execution started.</param>
+            <param name="CompletedAt">When execution completed.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.ExecutionResult.SchemaVersion">
+            <summary>The contract schema version.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.ExecutionResult.IncidentId">
+            <summary>The incident the action belongs to.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.ExecutionResult.ActionType">
+            <summary>The executed action type.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.ExecutionResult.IdempotencyKey">
+            <summary>The idempotency key of the execution request.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.ExecutionResult.Outcome">
+            <summary>The execution outcome.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.ExecutionResult.Message">
+            <summary>A human-readable description of the outcome.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.ExecutionResult.AttemptNumber">
+            <summary>The attempt number of this execution, starting at 1.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.ExecutionResult.StartedAt">
+            <summary>When execution started.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.ExecutionResult.CompletedAt">
+            <summary>When execution completed.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.VerificationCheckResult">
+            <summary>
+            The result of a single verification check.
+            </summary>
+            <param name="CheckType">The kind of check performed.</param>
+            <param name="Target">The target of the check.</param>
+            <param name="ExpectedValue">The expected result value as text.</param>
+            <param name="ActualValue">The observed result value as text.</param>
+            <param name="Passed">Whether the check passed.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Contracts.VerificationCheckResult.#ctor(System.String,System.String,System.String,System.String,System.Boolean)">
+            <summary>
+            The result of a single verification check.
+            </summary>
+            <param name="CheckType">The kind of check performed.</param>
+            <param name="Target">The target of the check.</param>
+            <param name="ExpectedValue">The expected result value as text.</param>
+            <param name="ActualValue">The observed result value as text.</param>
+            <param name="Passed">Whether the check passed.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.VerificationCheckResult.CheckType">
+            <summary>The kind of check performed.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.VerificationCheckResult.Target">
+            <summary>The target of the check.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.VerificationCheckResult.ExpectedValue">
+            <summary>The expected result value as text.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.VerificationCheckResult.ActualValue">
+            <summary>The observed result value as text.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.VerificationCheckResult.Passed">
+            <summary>Whether the check passed.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.VerificationResult">
+            <summary>
+            The overall result of a verification pass after remediation.
+            </summary>
+            <param name="SchemaVersion">The contract schema version.</param>
+            <param name="IncidentId">The incident that was verified.</param>
+            <param name="Outcome">The overall verification outcome.</param>
+            <param name="CheckResults">The individual check results.</param>
+            <param name="CompletedAt">When verification completed.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Contracts.VerificationResult.#ctor(System.String,System.String,AzureAgenticOps.Contracts.VerificationOutcome,System.Collections.Generic.IReadOnlyList{AzureAgenticOps.Contracts.VerificationCheckResult},System.DateTimeOffset)">
+            <summary>
+            The overall result of a verification pass after remediation.
+            </summary>
+            <param name="SchemaVersion">The contract schema version.</param>
+            <param name="IncidentId">The incident that was verified.</param>
+            <param name="Outcome">The overall verification outcome.</param>
+            <param name="CheckResults">The individual check results.</param>
+            <param name="CompletedAt">When verification completed.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.VerificationResult.SchemaVersion">
+            <summary>The contract schema version.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.VerificationResult.IncidentId">
+            <summary>The incident that was verified.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.VerificationResult.Outcome">
+            <summary>The overall verification outcome.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.VerificationResult.CheckResults">
+            <summary>The individual check results.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.VerificationResult.CompletedAt">
+            <summary>When verification completed.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.IncidentLifecycleEvent">
+            <summary>
+            An auditable lifecycle event emitted whenever an incident changes state or a
+            component records an outcome.
+            </summary>
+            <param name="SchemaVersion">The contract schema version.</param>
+            <param name="EventId">The unique identifier of the event.</param>
+            <param name="IncidentId">The incident the event belongs to.</param>
+            <param name="CorrelationId">The correlation identifier linking related operations.</param>
+            <param name="EventType">The event type, for example "IncidentReceived" or "ExecutionCompleted".</param>
+            <param name="Component">The component that emitted the event.</param>
+            <param name="OccurredAt">When the event occurred.</param>
+            <param name="AttemptNumber">The attempt number for retried operations, starting at 1.</param>
+            <param name="Outcome">The outcome of the operation, when applicable.</param>
+            <param name="WorkflowInstanceId">The workflow instance identifier, when the event is part of a workflow.</param>
+            <param name="Details">Additional string details describing the event.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Contracts.IncidentLifecycleEvent.#ctor(System.String,System.String,System.String,System.String,System.String,System.String,System.DateTimeOffset,System.Int32,System.String,System.String,System.Collections.Generic.IReadOnlyDictionary{System.String,System.String})">
+            <summary>
+            An auditable lifecycle event emitted whenever an incident changes state or a
+            component records an outcome.
+            </summary>
+            <param name="SchemaVersion">The contract schema version.</param>
+            <param name="EventId">The unique identifier of the event.</param>
+            <param name="IncidentId">The incident the event belongs to.</param>
+            <param name="CorrelationId">The correlation identifier linking related operations.</param>
+            <param name="EventType">The event type, for example "IncidentReceived" or "ExecutionCompleted".</param>
+            <param name="Component">The component that emitted the event.</param>
+            <param name="OccurredAt">When the event occurred.</param>
+            <param name="AttemptNumber">The attempt number for retried operations, starting at 1.</param>
+            <param name="Outcome">The outcome of the operation, when applicable.</param>
+            <param name="WorkflowInstanceId">The workflow instance identifier, when the event is part of a workflow.</param>
+            <param name="Details">Additional string details describing the event.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentLifecycleEvent.SchemaVersion">
+            <summary>The contract schema version.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentLifecycleEvent.EventId">
+            <summary>The unique identifier of the event.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentLifecycleEvent.IncidentId">
+            <summary>The incident the event belongs to.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentLifecycleEvent.CorrelationId">
+            <summary>The correlation identifier linking related operations.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentLifecycleEvent.EventType">
+            <summary>The event type, for example "IncidentReceived" or "ExecutionCompleted".</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentLifecycleEvent.Component">
+            <summary>The component that emitted the event.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentLifecycleEvent.OccurredAt">
+            <summary>When the event occurred.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentLifecycleEvent.AttemptNumber">
+            <summary>The attempt number for retried operations, starting at 1.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentLifecycleEvent.Outcome">
+            <summary>The outcome of the operation, when applicable.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentLifecycleEvent.WorkflowInstanceId">
+            <summary>The workflow instance identifier, when the event is part of a workflow.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Contracts.IncidentLifecycleEvent.Details">
+            <summary>Additional string details describing the event.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Contracts.SchemaVersions">
+            <summary>
+            Well-known schema version constants for public contracts.
+            </summary>
+        </member>
+        <member name="F:AzureAgenticOps.Contracts.SchemaVersions.V1">
+            <summary>The current schema version for all first-milestone contracts.</summary>
+        </member>
+    </members>
+</doc>

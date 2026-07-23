@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "evidenceId": "ev-003-log",
+  "incidentId": "inc-003",
+  "evidenceType": "log",
+  "source": "sample-api",
+  "content": "2026-07-03T08:38:22Z ERROR outbound_call target=payment-gateway.external error=\"upstream request timeout\" timeout_ms=5000 count_last_5m=87",
+  "collectedAt": "2026-07-03T08:41:00+00:00",
+  "attributes": {
+    "namespace": "demo",
+    "pod": "sample-api-7c9f6d"
+  }
+}

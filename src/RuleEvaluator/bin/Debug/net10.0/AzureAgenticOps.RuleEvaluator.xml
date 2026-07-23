@@ -1,0 +1,174 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>AzureAgenticOps.RuleEvaluator</name>
+    </assembly>
+    <members>
+        <member name="T:AzureAgenticOps.RuleEvaluator.DefaultRuleCatalog">
+            <summary>
+            The default rule set for the first-milestone scenarios. Rules are defined as
+            data so they can be reviewed and tested independently of the evaluator.
+            </summary>
+        </member>
+        <member name="F:AzureAgenticOps.RuleEvaluator.DefaultRuleCatalog.KnownRoutingConfigurationError">
+            <summary>The pattern name for a known routing configuration error.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.RuleEvaluator.DefaultRuleCatalog.ExternalDependencyTimeout">
+            <summary>The pattern name for an external dependency timeout.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.DefaultRuleCatalog.Rules">
+            <summary>Gets the default rule definitions.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.RuleEvaluator.IncidentRuleEvaluator">
+            <summary>
+            Deterministically evaluates an incident and its evidence against a set of
+            known-pattern rules. No language model is used. When no rule matches, or more
+            than one rule matches, the evaluator never guesses: it reports the incident as
+            unknown or ambiguous and recommends escalation.
+            </summary>
+        </member>
+        <member name="M:AzureAgenticOps.RuleEvaluator.IncidentRuleEvaluator.#ctor(System.Collections.Generic.IReadOnlyList{AzureAgenticOps.RuleEvaluator.RuleDefinition})">
+            <summary>Initializes a new evaluator with the supplied rule definitions.</summary>
+            <param name="rules">The rule definitions to evaluate against.</param>
+        </member>
+        <member name="M:AzureAgenticOps.RuleEvaluator.IncidentRuleEvaluator.Evaluate(AzureAgenticOps.Contracts.Incident,System.Collections.Generic.IReadOnlyList{AzureAgenticOps.Contracts.IncidentEvidence})">
+            <summary>
+            Evaluates the incident evidence against all configured rules.
+            </summary>
+            <param name="incident">The incident under evaluation.</param>
+            <param name="evidence">The evidence collected for the incident.</param>
+            <returns>The deterministic evaluation result.</returns>
+        </member>
+        <member name="T:AzureAgenticOps.RuleEvaluator.EvidenceMatchCriterion">
+            <summary>
+            A criterion that must be satisfied by at least one evidence item for a rule to match.
+            Matching is deterministic: the evidence type must match exactly and the content
+            must contain the required text (ordinal, case-insensitive).
+            </summary>
+            <param name="EvidenceType">The required evidence type, for example "log" or "config".</param>
+            <param name="ContentContains">The text that the evidence content must contain.</param>
+        </member>
+        <member name="M:AzureAgenticOps.RuleEvaluator.EvidenceMatchCriterion.#ctor(System.String,System.String)">
+            <summary>
+            A criterion that must be satisfied by at least one evidence item for a rule to match.
+            Matching is deterministic: the evidence type must match exactly and the content
+            must contain the required text (ordinal, case-insensitive).
+            </summary>
+            <param name="EvidenceType">The required evidence type, for example "log" or "config".</param>
+            <param name="ContentContains">The text that the evidence content must contain.</param>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.EvidenceMatchCriterion.EvidenceType">
+            <summary>The required evidence type, for example "log" or "config".</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.EvidenceMatchCriterion.ContentContains">
+            <summary>The text that the evidence content must contain.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.RuleEvaluator.RuleDefinition">
+            <summary>
+            A declarative definition of a known incident pattern. Rules are data, not code,
+            so they can be reviewed, versioned, and tested independently.
+            </summary>
+            <param name="PatternName">The unique name of the known pattern.</param>
+            <param name="Description">A description of the pattern.</param>
+            <param name="Criteria">The criteria that must all be satisfied for the rule to match.</param>
+            <param name="Confidence">The confidence assigned when the rule matches, from 0.0 to 1.0.</param>
+            <param name="RecommendedDisposition">The recommended disposition when the rule matches.</param>
+            <param name="EscalateToTier2">Whether the incident must still be escalated to Tier 2.</param>
+            <param name="ProposedActionType">The predefined action type to propose, when a deterministic remediation exists.</param>
+            <param name="MaxActionAttempts">The maximum number of times the proposed action may be attempted.</param>
+        </member>
+        <member name="M:AzureAgenticOps.RuleEvaluator.RuleDefinition.#ctor(System.String,System.String,System.Collections.Generic.IReadOnlyList{AzureAgenticOps.RuleEvaluator.EvidenceMatchCriterion},System.Double,AzureAgenticOps.Contracts.AgentDisposition,System.Boolean,System.String,System.Int32)">
+            <summary>
+            A declarative definition of a known incident pattern. Rules are data, not code,
+            so they can be reviewed, versioned, and tested independently.
+            </summary>
+            <param name="PatternName">The unique name of the known pattern.</param>
+            <param name="Description">A description of the pattern.</param>
+            <param name="Criteria">The criteria that must all be satisfied for the rule to match.</param>
+            <param name="Confidence">The confidence assigned when the rule matches, from 0.0 to 1.0.</param>
+            <param name="RecommendedDisposition">The recommended disposition when the rule matches.</param>
+            <param name="EscalateToTier2">Whether the incident must still be escalated to Tier 2.</param>
+            <param name="ProposedActionType">The predefined action type to propose, when a deterministic remediation exists.</param>
+            <param name="MaxActionAttempts">The maximum number of times the proposed action may be attempted.</param>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleDefinition.PatternName">
+            <summary>The unique name of the known pattern.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleDefinition.Description">
+            <summary>A description of the pattern.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleDefinition.Criteria">
+            <summary>The criteria that must all be satisfied for the rule to match.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleDefinition.Confidence">
+            <summary>The confidence assigned when the rule matches, from 0.0 to 1.0.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleDefinition.RecommendedDisposition">
+            <summary>The recommended disposition when the rule matches.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleDefinition.EscalateToTier2">
+            <summary>Whether the incident must still be escalated to Tier 2.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleDefinition.ProposedActionType">
+            <summary>The predefined action type to propose, when a deterministic remediation exists.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleDefinition.MaxActionAttempts">
+            <summary>The maximum number of times the proposed action may be attempted.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.RuleEvaluator.RuleEvaluationResult">
+            <summary>
+            The deterministic result of rule evaluation for one incident.
+            </summary>
+            <param name="Classification">The resulting classification.</param>
+            <param name="MatchedPatternName">The matched pattern name, when a rule matched.</param>
+            <param name="MatchedEvidenceIds">The identifiers of the evidence items that satisfied the criteria.</param>
+            <param name="Confidence">The confidence of the evaluation, from 0.0 to 1.0.</param>
+            <param name="RecommendedDisposition">The recommended next step.</param>
+            <param name="EscalateToTier2">Whether the incident must be escalated to Tier 2.</param>
+            <param name="ProposedActionType">The proposed predefined action type, when applicable.</param>
+            <param name="MaxActionAttempts">The maximum number of times the proposed action may be attempted.</param>
+            <param name="ReasonSummary">A short deterministic explanation of the decision.</param>
+        </member>
+        <member name="M:AzureAgenticOps.RuleEvaluator.RuleEvaluationResult.#ctor(AzureAgenticOps.Contracts.IncidentClassification,System.String,System.Collections.Generic.IReadOnlyList{System.String},System.Double,AzureAgenticOps.Contracts.AgentDisposition,System.Boolean,System.String,System.Int32,System.String)">
+            <summary>
+            The deterministic result of rule evaluation for one incident.
+            </summary>
+            <param name="Classification">The resulting classification.</param>
+            <param name="MatchedPatternName">The matched pattern name, when a rule matched.</param>
+            <param name="MatchedEvidenceIds">The identifiers of the evidence items that satisfied the criteria.</param>
+            <param name="Confidence">The confidence of the evaluation, from 0.0 to 1.0.</param>
+            <param name="RecommendedDisposition">The recommended next step.</param>
+            <param name="EscalateToTier2">Whether the incident must be escalated to Tier 2.</param>
+            <param name="ProposedActionType">The proposed predefined action type, when applicable.</param>
+            <param name="MaxActionAttempts">The maximum number of times the proposed action may be attempted.</param>
+            <param name="ReasonSummary">A short deterministic explanation of the decision.</param>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleEvaluationResult.Classification">
+            <summary>The resulting classification.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleEvaluationResult.MatchedPatternName">
+            <summary>The matched pattern name, when a rule matched.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleEvaluationResult.MatchedEvidenceIds">
+            <summary>The identifiers of the evidence items that satisfied the criteria.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleEvaluationResult.Confidence">
+            <summary>The confidence of the evaluation, from 0.0 to 1.0.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleEvaluationResult.RecommendedDisposition">
+            <summary>The recommended next step.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleEvaluationResult.EscalateToTier2">
+            <summary>Whether the incident must be escalated to Tier 2.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleEvaluationResult.ProposedActionType">
+            <summary>The proposed predefined action type, when applicable.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleEvaluationResult.MaxActionAttempts">
+            <summary>The maximum number of times the proposed action may be attempted.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.RuleEvaluator.RuleEvaluationResult.ReasonSummary">
+            <summary>A short deterministic explanation of the decision.</summary>
+        </member>
+    </members>
+</doc>

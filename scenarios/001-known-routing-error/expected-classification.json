@@ -1,0 +1,8 @@
+{
+  "classification": "known",
+  "matchedPatternName": "known-routing-configuration-error",
+  "minimumConfidence": 0.8,
+  "recommendedDisposition": "resolve",
+  "escalateToTier2": false,
+  "proposedActionType": "RollbackDemoDeployment"
+}

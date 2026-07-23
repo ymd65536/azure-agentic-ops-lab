@@ -1,0 +1,186 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>AzureAgenticOps.Safety</name>
+    </assembly>
+    <members>
+        <member name="T:AzureAgenticOps.Safety.ActionPolicyOptions">
+            <summary>
+            Options controlling action policy evaluation.
+            </summary>
+            <param name="AllowAutomaticLowRiskExecution">
+            Whether low-risk actions may execute without approval. This must only be
+            enabled in explicitly configured demo environments.
+            </param>
+            <param name="AllowedNamespaces">
+            The namespaces in which actions may be executed. An empty list rejects all targets.
+            </param>
+            <param name="MaxExecutionCount">The maximum permitted value for an action's execution count.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Safety.ActionPolicyOptions.#ctor(System.Boolean,System.Collections.Generic.IReadOnlyList{System.String},System.Int32)">
+            <summary>
+            Options controlling action policy evaluation.
+            </summary>
+            <param name="AllowAutomaticLowRiskExecution">
+            Whether low-risk actions may execute without approval. This must only be
+            enabled in explicitly configured demo environments.
+            </param>
+            <param name="AllowedNamespaces">
+            The namespaces in which actions may be executed. An empty list rejects all targets.
+            </param>
+            <param name="MaxExecutionCount">The maximum permitted value for an action's execution count.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Safety.ActionPolicyOptions.AllowAutomaticLowRiskExecution">
+            <summary>
+            Whether low-risk actions may execute without approval. This must only be
+            enabled in explicitly configured demo environments.
+            </summary>
+        </member>
+        <member name="P:AzureAgenticOps.Safety.ActionPolicyOptions.AllowedNamespaces">
+            <summary>
+            The namespaces in which actions may be executed. An empty list rejects all targets.
+            </summary>
+        </member>
+        <member name="P:AzureAgenticOps.Safety.ActionPolicyOptions.MaxExecutionCount">
+            <summary>The maximum permitted value for an action's execution count.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Safety.ActionPolicyOptions.DemoDefaults">
+            <summary>Gets a conservative default policy for the local demo environment.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Safety.ActionPolicyDecision">
+            <summary>
+            The decision produced by <see cref="T:AzureAgenticOps.Safety.ActionPolicyEvaluator"/> for a single action.
+            Policy code has final authority over model output.
+            </summary>
+            <param name="IsAllowed">Whether the action may proceed.</param>
+            <param name="RiskLevel">The authoritative risk level assigned by policy.</param>
+            <param name="RequiresApproval">Whether human approval is required before execution.</param>
+            <param name="RejectionReasons">The reasons the action was rejected, when rejected.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Safety.ActionPolicyDecision.#ctor(System.Boolean,AzureAgenticOps.Contracts.RiskLevel,System.Boolean,System.Collections.Generic.IReadOnlyList{System.String})">
+            <summary>
+            The decision produced by <see cref="T:AzureAgenticOps.Safety.ActionPolicyEvaluator"/> for a single action.
+            Policy code has final authority over model output.
+            </summary>
+            <param name="IsAllowed">Whether the action may proceed.</param>
+            <param name="RiskLevel">The authoritative risk level assigned by policy.</param>
+            <param name="RequiresApproval">Whether human approval is required before execution.</param>
+            <param name="RejectionReasons">The reasons the action was rejected, when rejected.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Safety.ActionPolicyDecision.IsAllowed">
+            <summary>Whether the action may proceed.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Safety.ActionPolicyDecision.RiskLevel">
+            <summary>The authoritative risk level assigned by policy.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Safety.ActionPolicyDecision.RequiresApproval">
+            <summary>Whether human approval is required before execution.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Safety.ActionPolicyDecision.RejectionReasons">
+            <summary>The reasons the action was rejected, when rejected.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Safety.ActionPolicyEvaluator">
+            <summary>
+            Deterministic policy evaluation for remediation actions. Evaluation enforces
+            the allow-list, rejects unknown and high-risk actions, requires approval for
+            medium-risk actions, and validates targets and idempotency keys. Agents
+            cannot downgrade the risk classification assigned here.
+            </summary>
+        </member>
+        <member name="M:AzureAgenticOps.Safety.ActionPolicyEvaluator.#ctor(AzureAgenticOps.Safety.ActionPolicyOptions)">
+            <summary>Initializes a new evaluator with the supplied policy options.</summary>
+            <param name="options">The policy options.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Safety.ActionPolicyEvaluator.Evaluate(AzureAgenticOps.Contracts.RemediationAction)">
+            <summary>
+            Evaluates a remediation action against policy.
+            </summary>
+            <param name="action">The requested action.</param>
+            <returns>The authoritative policy decision.</returns>
+        </member>
+        <member name="T:AzureAgenticOps.Safety.ActionTypeDefinition">
+            <summary>
+            The definition of a single allowed action type, including its fixed risk
+            classification. Agents cannot downgrade the risk level defined here.
+            </summary>
+            <param name="Name">The action type name.</param>
+            <param name="RiskLevel">The fixed risk classification of the action.</param>
+            <param name="Description">A description of what the action does.</param>
+        </member>
+        <member name="M:AzureAgenticOps.Safety.ActionTypeDefinition.#ctor(System.String,AzureAgenticOps.Contracts.RiskLevel,System.String)">
+            <summary>
+            The definition of a single allowed action type, including its fixed risk
+            classification. Agents cannot downgrade the risk level defined here.
+            </summary>
+            <param name="Name">The action type name.</param>
+            <param name="RiskLevel">The fixed risk classification of the action.</param>
+            <param name="Description">A description of what the action does.</param>
+        </member>
+        <member name="P:AzureAgenticOps.Safety.ActionTypeDefinition.Name">
+            <summary>The action type name.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Safety.ActionTypeDefinition.RiskLevel">
+            <summary>The fixed risk classification of the action.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Safety.ActionTypeDefinition.Description">
+            <summary>A description of what the action does.</summary>
+        </member>
+        <member name="T:AzureAgenticOps.Safety.ActionTypeCatalog">
+            <summary>
+            The allow-list of predefined action types. Only actions defined here may be
+            requested; unknown action types are rejected and treated as high risk.
+            Arbitrary shell, Kubernetes, or Azure CLI commands cannot be represented.
+            </summary>
+        </member>
+        <member name="F:AzureAgenticOps.Safety.ActionTypeCatalog.CollectDiagnostics">
+            <summary>Collects diagnostics from a target workload.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Safety.ActionTypeCatalog.QueryLogs">
+            <summary>Queries logs for a target workload.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Safety.ActionTypeCatalog.QueryResourceStatus">
+            <summary>Queries the status of a target resource.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Safety.ActionTypeCatalog.RestartDemoWorkload">
+            <summary>Restarts a disposable demo workload.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Safety.ActionTypeCatalog.ScaleDemoWorkload">
+            <summary>Scales a demo workload within a predefined range.</summary>
+        </member>
+        <member name="F:AzureAgenticOps.Safety.ActionTypeCatalog.RollbackDemoDeployment">
+            <summary>Rolls back a demo deployment to its previous revision.</summary>
+        </member>
+        <member name="P:AzureAgenticOps.Safety.ActionTypeCatalog.All">
+            <summary>Gets all allowed action type definitions.</summary>
+        </member>
+        <member name="M:AzureAgenticOps.Safety.ActionTypeCatalog.IsKnown(System.String)">
+            <summary>Determines whether the action type is on the allow-list.</summary>
+            <param name="actionType">The action type name to check.</param>
+            <returns><see langword="true"/> when the action type is allowed.</returns>
+        </member>
+        <member name="M:AzureAgenticOps.Safety.ActionTypeCatalog.TryGet(System.String,AzureAgenticOps.Safety.ActionTypeDefinition@)">
+            <summary>Attempts to resolve the definition for an action type.</summary>
+            <param name="actionType">The action type name.</param>
+            <param name="definition">The resolved definition, when found.</param>
+            <returns><see langword="true"/> when the action type is allowed.</returns>
+        </member>
+        <member name="T:AzureAgenticOps.Safety.IdempotencyKeyValidator">
+            <summary>
+            Validates idempotency keys supplied with remediation actions. Keys must be
+            non-empty, bounded in length, and restricted to a safe character set so they
+            can be stored and compared reliably across components.
+            </summary>
+        </member>
+        <member name="F:AzureAgenticOps.Safety.IdempotencyKeyValidator.MaxLength">
+            <summary>The maximum allowed idempotency key length.</summary>
+        </member>
+        <member name="M:AzureAgenticOps.Safety.IdempotencyKeyValidator.IsValid(System.String,System.String@)">
+            <summary>
+            Validates an idempotency key.
+            </summary>
+            <param name="idempotencyKey">The key to validate.</param>
+            <param name="failureReason">The reason validation failed, when it fails.</param>
+            <returns><see langword="true"/> when the key is valid.</returns>
+        </member>
+    </members>
+</doc>

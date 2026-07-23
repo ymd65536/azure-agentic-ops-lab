@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0",
+  "incidentId": "inc-002",
+  "title": "Gradual increase in HTTP 404 responses across sample-web",
+  "description": "Monitoring shows a gradual increase of HTTP 404 responses on sample-web with no recent configuration deployment. Multiple candidate causes exist: stale client links, a CDN cache issue, or an incomplete content migration.",
+  "source": "metrics-alert",
+  "severity": "sev3",
+  "affectedServices": ["sample-web", "content-service"],
+  "detectedAt": "2026-07-02T14:05:00+00:00",
+  "metadata": {
+    "environment": "demo",
+    "scenario": "002-ambiguous-404-increase"
+  }
+}

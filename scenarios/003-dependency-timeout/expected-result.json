@@ -1,0 +1,9 @@
+{
+  "finalState": "Terminated",
+  "tier2Invoked": true,
+  "requiresApproval": true,
+  "maxActionAttempts": 0,
+  "expectedActionTypes": [],
+  "verificationOutcome": "inconclusive",
+  "notes": "The root cause is an external dependency; restarting the local service is ineffective and must not be repeated indefinitely. The workflow must escalate or terminate safely, recording the remaining uncertainty."
+}

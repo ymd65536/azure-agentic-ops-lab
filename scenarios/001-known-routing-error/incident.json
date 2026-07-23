@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0",
+  "incidentId": "inc-001",
+  "title": "HTTP 404 spike on sample-api after configuration deployment",
+  "description": "Synthetic monitoring reports a sudden spike of HTTP 404 responses on sample-api immediately after a routing configuration deployment.",
+  "source": "synthetic-monitor",
+  "severity": "sev3",
+  "affectedServices": ["sample-api"],
+  "detectedAt": "2026-07-01T09:15:00+00:00",
+  "metadata": {
+    "environment": "demo",
+    "scenario": "001-known-routing-error"
+  }
+}

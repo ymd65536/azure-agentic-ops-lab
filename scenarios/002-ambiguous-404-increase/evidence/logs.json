@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "evidenceId": "ev-002-log",
+  "incidentId": "inc-002",
+  "evidenceType": "log",
+  "source": "sample-web",
+  "content": "2026-07-02T14:03:11Z INFO http_request path=/articles/2024-archive status=404 referer=external count_last_1h=1893 paths_distinct=142",
+  "collectedAt": "2026-07-02T14:06:00+00:00",
+  "attributes": {
+    "namespace": "demo",
+    "pod": "sample-web-5b8d2a"
+  }
+}

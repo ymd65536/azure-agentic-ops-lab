@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "evidenceId": "ev-002-metric",
+  "incidentId": "inc-002",
+  "evidenceType": "metric",
+  "source": "metrics-store",
+  "content": "http_404_rate sample-web: 0.4% -> 3.1% over 6h; no deployment events in the same window; cdn_cache_hit_ratio dropped from 0.92 to 0.71",
+  "collectedAt": "2026-07-02T14:06:20+00:00",
+  "attributes": {
+    "namespace": "demo",
+    "window": "6h"
+  }
+}

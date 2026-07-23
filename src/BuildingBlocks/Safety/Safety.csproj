@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Contracts\Contracts.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <RootNamespace>AzureAgenticOps.Safety</RootNamespace>
+    <AssemblyName>AzureAgenticOps.Safety</AssemblyName>
+  </PropertyGroup>
+
+</Project>

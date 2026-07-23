@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RuleEvaluator/RuleEvaluator.csproj" />
+  </Folder>
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/AgentRuntime/AgentRuntime.csproj" />
+    <Project Path="src/BuildingBlocks/Contracts/Contracts.csproj" />
+    <Project Path="src/BuildingBlocks/Safety/Safety.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ContractTests/ContractTests.csproj" />
+    <Project Path="tests/UnitTests/UnitTests.csproj" />
+  </Folder>
+</Solution>

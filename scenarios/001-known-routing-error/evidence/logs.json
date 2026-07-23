@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "evidenceId": "ev-001-log",
+  "incidentId": "inc-001",
+  "evidenceType": "log",
+  "source": "sample-api",
+  "content": "2026-07-01T09:14:52Z WARN http_request path=/api/orders status=404 message=\"no matching route\" count_last_5m=412",
+  "collectedAt": "2026-07-01T09:16:00+00:00",
+  "attributes": {
+    "namespace": "demo",
+    "pod": "sample-api-7c9f6d"
+  }
+}

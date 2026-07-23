@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "evidenceId": "ev-003-metric",
+  "incidentId": "inc-003",
+  "evidenceType": "metric",
+  "source": "metrics-store",
+  "content": "dependencyLatencyMs payment-gateway p95: 180 -> 5000 (timeout ceiling) over 30m; sample-api pod restarts in window: 2; latency unchanged after restarts",
+  "collectedAt": "2026-07-03T08:41:20+00:00",
+  "attributes": {
+    "namespace": "demo",
+    "window": "30m"
+  }
+}

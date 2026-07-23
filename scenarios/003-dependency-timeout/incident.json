@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0",
+  "incidentId": "inc-003",
+  "title": "sample-api errors caused by external payment gateway timeouts",
+  "description": "sample-api reports elevated 5xx responses. Logs show upstream request timeouts calling the external payment gateway. Restarting sample-api does not fix the external dependency.",
+  "source": "metrics-alert",
+  "severity": "sev2",
+  "affectedServices": ["sample-api"],
+  "detectedAt": "2026-07-03T08:40:00+00:00",
+  "metadata": {
+    "environment": "demo",
+    "scenario": "003-dependency-timeout"
+  }
+}
