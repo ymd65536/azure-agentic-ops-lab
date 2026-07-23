@@ -50,6 +50,9 @@ public static class ScenarioLoader
         ExpectedClassification ExpectedClassificationResult,
         ExpectedResult ExpectedFinalResult);
 
+    /// <summary>Gets the repository root directory containing version-controlled fixtures.</summary>
+    public static string RepositoryRoot => FindRepositoryRoot();
+
     /// <summary>Loads a scenario by its directory name, for example "001-known-routing-error".</summary>
     /// <param name="scenarioName">The scenario directory name.</param>
     /// <returns>The loaded scenario.</returns>

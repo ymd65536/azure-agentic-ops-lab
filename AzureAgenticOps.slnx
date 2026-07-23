@@ -1,6 +1,10 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/ExecutionService/ExecutionService.csproj" />
     <Project Path="src/RuleEvaluator/RuleEvaluator.csproj" />
+    <Project Path="src/Tier1SreAgent/Tier1SreAgent.csproj" />
+    <Project Path="src/Tier2SreAgent/Tier2SreAgent.csproj" />
+    <Project Path="src/VerificationService/VerificationService.csproj" />
   </Folder>
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/AgentRuntime/AgentRuntime.csproj" />

@@ -20,6 +20,10 @@
     <ProjectReference Include="..\..\src\BuildingBlocks\AgentRuntime\AgentRuntime.csproj" />
     <ProjectReference Include="..\..\src\BuildingBlocks\Safety\Safety.csproj" />
     <ProjectReference Include="..\..\src\RuleEvaluator\RuleEvaluator.csproj" />
+    <ProjectReference Include="..\..\src\Tier1SreAgent\Tier1SreAgent.csproj" />
+    <ProjectReference Include="..\..\src\Tier2SreAgent\Tier2SreAgent.csproj" />
+    <ProjectReference Include="..\..\src\ExecutionService\ExecutionService.csproj" />
+    <ProjectReference Include="..\..\src\VerificationService\VerificationService.csproj" />
   </ItemGroup>
 
 </Project>
