@@ -23,6 +23,7 @@ Detect → Classify → Investigate → Escalate → Plan → Approve → Execut
 * ExecutionService（`src/ExecutionService`）— ポリシー検証・承認ゲート・冪等性台帳を備えたモック（dry-run）実行
 * VerificationService（`src/VerificationService`）— 決定的な検証チェックの集約（全チェック合格で passed、チェックなしは inconclusive）
 * ScribeService（`src/ScribeService`）— 重複イベント耐性のあるタイムライン構築と、構造化イベントからの決定的なポストインシデントレコード生成
+* Observability 基盤（`src/BuildingBlocks/Observability`）— OpenTelemetry 互換の ActivitySource / Meter、相関タグ規約（incident.id、correlation.id 等）、AGENTS.md §13 の推奨メトリクス一式
 * プロンプト資産（`prompts/`）と Insights ナレッジフィクスチャ（`knowledge/`）
 * 固定シナリオ（`scenarios/`）— Scenario 001〜003
 * テスト（`tests/UnitTests`、`tests/ContractTests`、`tests/WorkflowTests`）
@@ -80,6 +81,8 @@ dotnet test
 
 * **ワークフローが遷移を所有**: `WorkflowStateMachine` が宣言的な遷移表で全状態遷移を検証し、`IncidentWorkflowOrchestrator` のすべてのループは `IncidentWorkflowOptions` の最大試行回数で有界です。承認は外部イベント（承認 / 却下 / タイムアウト）として扱われ、HTTP リクエストを保持しません。
 
+* **計装は SDK 非依存**: `BuildingBlocks/Observability` は `System.Diagnostics` プリミティブ（`ActivitySource` / `Meter`）のみに依存し、OpenTelemetry SDK やエクスポータはホスト側で登録します。インシデント ID などの高カーディナリティ値はスパン・ログのみに付与し、メトリクスラベルには使用しません。
+
 ## 未実装の機能（今後のMilestone）
 
 * Dapr Workflow ホスティング（現在の `IncidentWorkflow` オーケストレータを Dapr Workflow 上で実行）
@@ -87,7 +90,7 @@ dotnet test
 * IncidentApi
 * ExecutionService / VerificationService / ScribeService の Dapr サービスホスト化（現在はライブラリ実装のみ）
 * 実 LLM（Azure OpenAI / Microsoft Foundry）接続
-* OpenTelemetry 計装（`BuildingBlocks/Observability`）
+* OpenTelemetry SDK / エクスポータのホスト登録（計装ライブラリは実装済み）
 * Kubernetes マニフェスト、k3d/kind ブートストラップ、AKS デプロイ
 
 詳細は [`docs/architecture.md`](docs/architecture.md) と [`docs/evaluation-plan.md`](docs/evaluation-plan.md) を参照してください。
