@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks\Contracts\Contracts.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <RootNamespace>AzureAgenticOps.ScribeService</RootNamespace>
+    <AssemblyName>AzureAgenticOps.ScribeService</AssemblyName>
+  </PropertyGroup>
+
+</Project>
