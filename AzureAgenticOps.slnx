@@ -11,6 +11,7 @@
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/AgentRuntime/AgentRuntime.csproj" />
     <Project Path="src/BuildingBlocks/Contracts/Contracts.csproj" />
+    <Project Path="src/BuildingBlocks/Observability/Observability.csproj" />
     <Project Path="src/BuildingBlocks/Safety/Safety.csproj" />
   </Folder>
   <Folder Name="/tests/">

@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using AzureAgenticOps.Contracts;
+using AzureAgenticOps.Observability;
 using AzureAgenticOps.RuleEvaluator;
 
 namespace AzureAgenticOps.IncidentWorkflow;
@@ -44,6 +46,7 @@ public sealed class IncidentWorkflowOrchestrator
     private readonly ILifecycleEventPublisher _eventPublisher;
     private readonly IncidentWorkflowOptions _options;
     private readonly TimeProvider _timeProvider;
+    private readonly AgenticOpsMetrics? _metrics;
 
     /// <summary>Initializes a new orchestrator.</summary>
     /// <param name="activities">The workflow activities.</param>
@@ -51,12 +54,14 @@ public sealed class IncidentWorkflowOrchestrator
     /// <param name="eventPublisher">The lifecycle event publisher.</param>
     /// <param name="options">The workflow options. Defaults to <see cref="IncidentWorkflowOptions.Default"/>.</param>
     /// <param name="timeProvider">The time provider. Defaults to <see cref="TimeProvider.System"/>.</param>
+    /// <param name="metrics">The optional metrics sink. When <c>null</c>, no metrics are emitted.</param>
     public IncidentWorkflowOrchestrator(
         IIncidentWorkflowActivities activities,
         IApprovalGate approvalGate,
         ILifecycleEventPublisher eventPublisher,
         IncidentWorkflowOptions? options = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        AgenticOpsMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(activities);
         ArgumentNullException.ThrowIfNull(approvalGate);
@@ -66,6 +71,7 @@ public sealed class IncidentWorkflowOrchestrator
         _eventPublisher = eventPublisher;
         _options = options ?? IncidentWorkflowOptions.Default;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _metrics = metrics;
     }
 
     /// <summary>
@@ -87,9 +93,24 @@ public sealed class IncidentWorkflowOrchestrator
         ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
 
         var run = new WorkflowRun(incident, workflowInstanceId, correlationId, _timeProvider.GetUtcNow());
+        using Activity? workflowSpan = AgenticOpsActivitySource.StartSpan(SpanNames.WorkflowExecution, run.Correlation);
+        _metrics?.RecordIncidentReceived();
         await EmitAsync(run, "IncidentReceived", outcome: null, details: null, cancellationToken).ConfigureAwait(false);
 
         await ExecuteLifecycleAsync(run, cancellationToken).ConfigureAwait(false);
+
+        DateTimeOffset completedAt = _timeProvider.GetUtcNow();
+        workflowSpan?.SetTag(ObservabilityTags.FinalState, run.State.ToString());
+        if (run.State == IncidentWorkflowState.Resolved)
+        {
+            AgenticOpsActivitySource.RecordSuccess(workflowSpan, run.State.ToString());
+            _metrics?.RecordIncidentResolved(completedAt - run.StartedAt);
+        }
+        else
+        {
+            AgenticOpsActivitySource.RecordFailure(workflowSpan, run.State.ToString());
+            _metrics?.RecordIncidentFailed(run.State.ToString(), completedAt - run.StartedAt);
+        }
 
         return new IncidentWorkflowResult(
             SchemaVersions.V1,
@@ -100,7 +121,7 @@ public sealed class IncidentWorkflowOrchestrator
             run.Summary,
             run.StateHistory,
             run.StartedAt,
-            _timeProvider.GetUtcNow());
+            completedAt);
     }
 
     private async Task ExecuteLifecycleAsync(WorkflowRun run, CancellationToken cancellationToken)
@@ -214,6 +235,7 @@ public sealed class IncidentWorkflowOrchestrator
             }
 
             // A failed verification after Tier 1 remediation escalates to Tier 2.
+            _metrics?.RecordVerificationFailure(verification?.Outcome.ToString() ?? "error");
             await EmitAsync(run, "VerificationCompleted", verification?.Outcome.ToString() ?? "error", null, cancellationToken).ConfigureAwait(false);
             await TransitionAsync(run, IncidentWorkflowState.Tier2Investigation, cancellationToken).ConfigureAwait(false);
         }
@@ -262,8 +284,13 @@ public sealed class IncidentWorkflowOrchestrator
             {
                 // Human approval is an external workflow event with a bounded wait.
                 await TransitionAsync(run, IncidentWorkflowState.AwaitingApproval, cancellationToken).ConfigureAwait(false);
-                ApprovalDecision decision = await _approvalGate.WaitForApprovalAsync(
-                    run.Incident, plan, _options.EffectiveApprovalTimeout, cancellationToken).ConfigureAwait(false);
+                ApprovalDecision decision;
+                using (Activity? approvalSpan = AgenticOpsActivitySource.StartSpan(SpanNames.ApprovalWait, run.Correlation))
+                {
+                    decision = await _approvalGate.WaitForApprovalAsync(
+                        run.Incident, plan, _options.EffectiveApprovalTimeout, cancellationToken).ConfigureAwait(false);
+                    AgenticOpsActivitySource.RecordSuccess(approvalSpan, decision.Outcome.ToString());
+                }
 
                 await EmitAsync(run, "ApprovalCompleted", decision.Outcome.ToString(), new Dictionary<string, string>
                 {
@@ -327,6 +354,11 @@ public sealed class IncidentWorkflowOrchestrator
                 }
             }
 
+            if (verification is null || verification.Outcome != VerificationOutcome.Passed)
+            {
+                _metrics?.RecordVerificationFailure(verification?.Outcome.ToString() ?? "error");
+            }
+
             await EmitAsync(run, "VerificationCompleted", verification?.Outcome.ToString() ?? "error", null, cancellationToken).ConfigureAwait(false);
 
             if (verification is not null && verification.Outcome == VerificationOutcome.Passed)
@@ -384,6 +416,7 @@ public sealed class IncidentWorkflowOrchestrator
 
             if (execution is not null)
             {
+                _metrics?.RecordActionExecution(execution.ActionType, execution.Outcome.ToString());
                 await EmitAsync(run, "ExecutionCompleted", execution.Outcome.ToString(), new Dictionary<string, string>
                 {
                     ["actionType"] = execution.ActionType,
@@ -415,6 +448,7 @@ public sealed class IncidentWorkflowOrchestrator
         }
 
         await TransitionAsync(run, IncidentWorkflowState.RollingBack, cancellationToken).ConfigureAwait(false);
+        using Activity? rollbackSpan = AgenticOpsActivitySource.StartSpan(SpanNames.Rollback, run.Correlation);
         bool rollbackSucceeded = true;
         foreach (RemediationAction action in plan.Rollback)
         {
@@ -424,6 +458,15 @@ public sealed class IncidentWorkflowOrchestrator
             {
                 rollbackSucceeded = false;
             }
+        }
+
+        if (rollbackSucceeded)
+        {
+            AgenticOpsActivitySource.RecordSuccess(rollbackSpan, "success");
+        }
+        else
+        {
+            AgenticOpsActivitySource.RecordFailure(rollbackSpan, "RollbackIncomplete");
         }
 
         await FailAsync(run,
@@ -439,10 +482,13 @@ public sealed class IncidentWorkflowOrchestrator
         CancellationToken cancellationToken)
         where T : class
     {
+        using Activity? span = AgenticOpsActivitySource.StartSpan(GetSpanName(activityName), run.Correlation, attemptNumber);
         DateTimeOffset startedAt = _timeProvider.GetUtcNow();
         try
         {
             T result = await activity(cancellationToken).ConfigureAwait(false);
+            AgenticOpsActivitySource.RecordSuccess(span, "success");
+            RecordTierDuration(activityName, _timeProvider.GetUtcNow() - startedAt);
             return result;
         }
         catch (OperationCanceledException)
@@ -451,6 +497,8 @@ public sealed class IncidentWorkflowOrchestrator
         }
         catch (Exception exception)
         {
+            AgenticOpsActivitySource.RecordFailure(span, exception.GetType().Name);
+            RecordTierDuration(activityName, _timeProvider.GetUtcNow() - startedAt);
             await EmitAsync(run, activityName + "Failed", "error", new Dictionary<string, string>
             {
                 ["errorCategory"] = exception.GetType().Name,
@@ -458,6 +506,30 @@ public sealed class IncidentWorkflowOrchestrator
                 ["durationMs"] = (_timeProvider.GetUtcNow() - startedAt).TotalMilliseconds.ToString("0", System.Globalization.CultureInfo.InvariantCulture),
             }, cancellationToken).ConfigureAwait(false);
             return null;
+        }
+    }
+
+    private static string GetSpanName(string activityName) => activityName switch
+    {
+        "EvidenceCollection" => SpanNames.EvidenceCollection,
+        "RuleEvaluation" => SpanNames.RuleEvaluation,
+        "Tier1Investigation" => SpanNames.Tier1Investigation,
+        "Tier2Planning" => SpanNames.Tier2Planning,
+        "Execution" => SpanNames.Execution,
+        "Verification" => SpanNames.Verification,
+        _ => "activity." + activityName,
+    };
+
+    private void RecordTierDuration(string activityName, TimeSpan duration)
+    {
+        switch (activityName)
+        {
+            case "Tier1Investigation":
+                _metrics?.RecordTier1Duration(duration);
+                break;
+            case "Tier2Planning":
+                _metrics?.RecordTier2Duration(duration);
+                break;
         }
     }
 
@@ -478,6 +550,12 @@ public sealed class IncidentWorkflowOrchestrator
         WorkflowStateMachine.EnsureValid(run.State, to);
         IncidentWorkflowState from = run.State;
         run.MoveTo(to);
+        if (to == IncidentWorkflowState.Tier2Investigation && !run.EscalationRecorded)
+        {
+            run.EscalationRecorded = true;
+            _metrics?.RecordIncidentEscalated();
+        }
+
         await EmitAsync(run, "StateChanged", to.ToString(), new Dictionary<string, string>
         {
             ["from"] = from.ToString(),
@@ -528,6 +606,7 @@ public sealed class IncidentWorkflowOrchestrator
             WorkflowInstanceId = workflowInstanceId;
             CorrelationId = correlationId;
             StartedAt = startedAt;
+            Correlation = new CorrelationContext(incident.IncidentId, correlationId, ComponentName, workflowInstanceId);
             _stateHistory = [IncidentWorkflowState.Received];
         }
 
@@ -538,6 +617,10 @@ public sealed class IncidentWorkflowOrchestrator
         public string WorkflowInstanceId { get; }
 
         public string CorrelationId { get; }
+
+        public CorrelationContext Correlation { get; }
+
+        public bool EscalationRecorded { get; set; }
 
         public DateTimeOffset StartedAt { get; }
 

@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BuildingBlocks\Contracts\Contracts.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\Observability\Observability.csproj" />
     <ProjectReference Include="..\RuleEvaluator\RuleEvaluator.csproj" />
   </ItemGroup>
 

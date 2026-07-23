@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\BuildingBlocks\Contracts\Contracts.csproj" />
     <ProjectReference Include="..\..\src\BuildingBlocks\AgentRuntime\AgentRuntime.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\Observability\Observability.csproj" />
     <ProjectReference Include="..\..\src\BuildingBlocks\Safety\Safety.csproj" />
     <ProjectReference Include="..\..\src\RuleEvaluator\RuleEvaluator.csproj" />
     <ProjectReference Include="..\..\src\Tier1SreAgent\Tier1SreAgent.csproj" />
