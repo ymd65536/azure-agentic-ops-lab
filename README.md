@@ -14,9 +14,14 @@ Detect → Classify → Investigate → Escalate → Plan → Approve → Execut
 システム全体の土台のみを実装しています。
 
 * 共有契約（`src/BuildingBlocks/Contracts`）— Incident、InvestigationResult、RemediationPlan などの immutable record と安定した JSON シリアライズ
-* モデルクライアント抽象化（`src/BuildingBlocks/AgentRuntime`）— `IAgentModelClient` と決定的テスト用 `FakeAgentModelClient`
+* モデルクライアント抽象化（`src/BuildingBlocks/AgentRuntime`）— `IAgentModelClient`、決定的テスト用 `FakeAgentModelClient`、バージョン管理プロンプトを読み込む `FilePromptStore`
 * Safety 基盤（`src/BuildingBlocks/Safety`）— ActionType 許可リスト、リスク判定、`ActionPolicyEvaluator`、IdempotencyKey 検証
 * RuleEvaluator（`src/RuleEvaluator`）— LLM を使わない決定的な既知パターン判定（ルールはデータとして分離）
+* Tier 1 SRE Agent（`src/Tier1SreAgent`）— 構造化出力の検証、有界の修復リトライ、信頼度しきい値による決定的エスカレーション、Insights 検索機能
+* Tier 2 SRE Agent（`src/Tier2SreAgent`）— 構造化された復旧計画、リスクフロア（エージェントはリスクを下げられない）、承認要件の強制
+* ExecutionService（`src/ExecutionService`）— ポリシー検証・承認ゲート・冪等性台帳を備えたモック（dry-run）実行
+* VerificationService（`src/VerificationService`）— 決定的な検証チェックの集約（全チェック合格で passed、チェックなしは inconclusive）
+* プロンプト資産（`prompts/`）と Insights ナレッジフィクスチャ（`knowledge/`）
 * 固定シナリオ（`scenarios/`）— Scenario 001〜003
 * テスト（`tests/UnitTests`、`tests/ContractTests`）
 
@@ -75,11 +80,10 @@ dotnet test
 
 * Dapr Workflow（`IncidentWorkflow`）と外部承認イベント
 * Dapr Service Invocation / Pub/Sub
-* Tier 1 / Tier 2 SRE Agent の本実装と Insights 機能
-* IncidentApi / ExecutionService / VerificationService / ScribeService
+* IncidentApi / ScribeService
+* ExecutionService / VerificationService の Dapr サービスホスト化（現在はライブラリ実装のモックのみ）
 * 実 LLM（Azure OpenAI / Microsoft Foundry）接続
 * OpenTelemetry 計装（`BuildingBlocks/Observability`）
 * Kubernetes マニフェスト、k3d/kind ブートストラップ、AKS デプロイ
-* prompts/ 配下のプロンプト資産
 
 詳細は [`docs/architecture.md`](docs/architecture.md) と [`docs/evaluation-plan.md`](docs/evaluation-plan.md) を参照してください。

@@ -65,6 +65,10 @@ failures, and simulated latency driven by `TimeProvider` so no test sleeps.
 Invalid output raises `ModelResponseValidationException`; invalid model output
 is never passed downstream.
 
+`FilePromptStore` loads version-controlled prompts from
+`prompts/<name>/<version>.md` so no prompt is embedded in application source
+code and every prompt version is diffable and reviewable.
+
 No real Azure OpenAI or Microsoft Foundry client exists yet by design.
 
 ### BuildingBlocks/Safety
@@ -98,6 +102,65 @@ declarative `RuleDefinition` data (no LLM). Decision table:
 (known but escalates; proposes no local action so restart loops are
 impossible).
 
+### Tier1SreAgent
+
+`Tier1SreAgent` is the fast investigation path. It searches the Insights
+knowledge base, loads the `tier1-investigation` prompt, and asks the model for
+a structured `InvestigationResult`. Deterministic code — not the model — has
+final authority over the outcome:
+
+* structured output is validated (schema version, incident id, confidence
+  range, non-empty summary); invalid output triggers one bounded repair
+  attempt and then fails safely with `ModelResponseValidationException`
+* a `resolve` recommendation below the configured confidence threshold is
+  escalated to Tier 2
+* a proposed action whose type is not in `ActionTypeCatalog` is stripped and
+  the result is escalated
+* a `resolve` recommendation without a proposed deterministic action is
+  escalated
+
+`InsightsCapability` is a Tier 1 sub-capability, not an agent. It performs
+deterministic keyword search over the version-controlled fixtures in
+`knowledge/knowledge-base.json` (runbooks, prior incidents) and returns hits
+with source identifiers. No vector database is used.
+
+### Tier2SreAgent
+
+`Tier2SreAgent` is the deep reasoning path. It receives the complete
+structured Tier 1 handoff plus evidence, loads the `tier2-remediation` prompt,
+and asks the model for a structured `RemediationPlan`. Deterministic guards
+enforce the risk floor:
+
+* plans containing action types outside `ActionTypeCatalog` are invalid
+* the authoritative plan risk level is the maximum fixed catalog
+  classification across all actions; the model can raise but never lower it
+* medium- and high-risk plans always require approval; low-risk plans require
+  approval unless automatic low-risk execution is explicitly enabled
+
+### ExecutionService
+
+`MockExecutionService` executes validated actions in mock (dry-run) mode only.
+Every request first passes through `ActionPolicyEvaluator`; rejected actions
+never execute. Approval requirements are enforced (`Rejected` when approval is
+required but absent), and an in-memory idempotency ledger skips executions
+beyond the action's `MaxExecutionCount`, producing `Skipped` results for
+duplicate delivery.
+
+### VerificationService
+
+`VerificationEvaluator` runs the plan's `VerificationStep`s through an
+`IVerificationCheckRunner` and aggregates deterministically: all checks must
+pass for `passed`, any failure yields `failed`, and an empty step list yields
+`inconclusive` because success cannot be demonstrated.
+`MockVerificationCheckRunner` reports configured values per target and fails
+unconfigured targets instead of guessing.
+
+### Prompts and knowledge fixtures
+
+`prompts/` holds the versioned prompt files (`tier1-investigation/1.0.md`,
+`tier2-remediation/1.0.md`). `knowledge/knowledge-base.json` holds the
+Insights fixtures. Both are plain version-controlled files loaded at runtime.
+
 ### Scenarios
 
 `scenarios/` holds fixed, version-controlled fixtures loaded directly by
@@ -123,5 +186,5 @@ configuration change. Each scenario contains `incident.json`, `evidence/`,
 * `ScaleDemoWorkload` parameter bounds (min/max replicas) are not yet
   enforced; the range check belongs to ExecutionService schema validation in a
   later milestone.
-* Retry/repair loops for invalid model output are not implemented yet; the
-  fake client records `RetryCount = 0`.
+* `MockExecutionService` and `VerificationEvaluator` are in-process library
+  implementations; the Dapr service hosts arrive with the workflow milestone.
