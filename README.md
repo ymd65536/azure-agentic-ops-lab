@@ -19,11 +19,13 @@ Detect → Classify → Investigate → Escalate → Plan → Approve → Execut
 * RuleEvaluator（`src/RuleEvaluator`）— LLM を使わない決定的な既知パターン判定（ルールはデータとして分離）
 * Tier 1 SRE Agent（`src/Tier1SreAgent`）— 構造化出力の検証、有界の修復リトライ、信頼度しきい値による決定的エスカレーション、Insights 検索機能
 * Tier 2 SRE Agent（`src/Tier2SreAgent`）— 構造化された復旧計画、リスクフロア（エージェントはリスクを下げられない）、承認要件の強制
+* IncidentWorkflow（`src/IncidentWorkflow`）— 明示的ステートマシンによる決定的オーケストレーション、有界リトライ、外部承認イベント抽象、ライフサイクルイベント発行、ロールバック、安全な停止
 * ExecutionService（`src/ExecutionService`）— ポリシー検証・承認ゲート・冪等性台帳を備えたモック（dry-run）実行
 * VerificationService（`src/VerificationService`）— 決定的な検証チェックの集約（全チェック合格で passed、チェックなしは inconclusive）
+* ScribeService（`src/ScribeService`）— 重複イベント耐性のあるタイムライン構築と、構造化イベントからの決定的なポストインシデントレコード生成
 * プロンプト資産（`prompts/`）と Insights ナレッジフィクスチャ（`knowledge/`）
 * 固定シナリオ（`scenarios/`）— Scenario 001〜003
-* テスト（`tests/UnitTests`、`tests/ContractTests`）
+* テスト（`tests/UnitTests`、`tests/ContractTests`、`tests/WorkflowTests`）
 
 Dapr、Kubernetes、Azure リソース、実 LLM API は **このMilestoneでは使用しません**。
 
@@ -76,12 +78,14 @@ dotnet test
 * **安定した契約 JSON**: `ContractSerialization` が camelCase、文字列 enum、null 省略を固定し、ContractTests のゴールデンテストで破壊的変更を検出します。
 * **決定的なモデルテスト**: `FakeAgentModelClient` は応答・遅延（`TimeProvider` ベース）・失敗・無効 JSON をテストから制御できます。
 
+* **ワークフローが遷移を所有**: `WorkflowStateMachine` が宣言的な遷移表で全状態遷移を検証し、`IncidentWorkflowOrchestrator` のすべてのループは `IncidentWorkflowOptions` の最大試行回数で有界です。承認は外部イベント（承認 / 却下 / タイムアウト）として扱われ、HTTP リクエストを保持しません。
+
 ## 未実装の機能（今後のMilestone）
 
-* Dapr Workflow（`IncidentWorkflow`）と外部承認イベント
-* Dapr Service Invocation / Pub/Sub
-* IncidentApi / ScribeService
-* ExecutionService / VerificationService の Dapr サービスホスト化（現在はライブラリ実装のモックのみ）
+* Dapr Workflow ホスティング（現在の `IncidentWorkflow` オーケストレータを Dapr Workflow 上で実行）
+* Dapr Service Invocation / Pub/Sub（`ILifecycleEventPublisher` / `IIncidentWorkflowActivities` の Dapr 実装）
+* IncidentApi
+* ExecutionService / VerificationService / ScribeService の Dapr サービスホスト化（現在はライブラリ実装のみ）
 * 実 LLM（Azure OpenAI / Microsoft Foundry）接続
 * OpenTelemetry 計装（`BuildingBlocks/Observability`）
 * Kubernetes マニフェスト、k3d/kind ブートストラップ、AKS デプロイ
