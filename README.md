@@ -25,7 +25,8 @@ Detect → Classify → Investigate → Escalate → Plan → Approve → Execut
 * ScribeService（`src/ScribeService`）— 重複イベント耐性のあるタイムライン構築と、構造化イベントからの決定的なポストインシデントレコード生成
 * Observability 基盤（`src/BuildingBlocks/Observability`）— OpenTelemetry 互換の ActivitySource / Meter、相関タグ規約（incident.id、correlation.id 等）、AGENTS.md §13 の推奨メトリクス一式
 * IncidentApi ホスト（`src/IncidentApi`）— インシデント受付・状態照会・承認外部イベント・ヘルスチェックを提供する ASP.NET Core 最小 API。全ライブラリを DI で結線し、決定的スタブモデルクライアントでワークフロー全体をローカル実行可能。Dapr サイドカー経由の `incident-pubsub` ライフサイクルイベント発行（無効時は no-op）。OpenTelemetry SDK によるトレース・メトリクス収集（OTLP エクスポータはオプトイン）
-* ローカル Kubernetes デプロイ資産 — IncidentApi の `Dockerfile`、`deploy/local/` の Kubernetes マニフェスト（namespace `agentic-ops`、Dapr コンポーネント `incident-pubsub` / `incident-state` / `secret-store`、開発用 Redis）、`scripts/` の運用スクリプト一式
+* OpsConsole（`src/OpsConsole`）— .NET Blazor（Interactive Server）による運用コンソール。ワークフローの状態遷移・ライフサイクルタイムライン・人間の承認・シナリオ実行を視覚的に確認できる。IncidentApi を読み取り、人間の判断を中継するだけで、復旧アクションは実行しない
+* ローカル Kubernetes デプロイ資産 — IncidentApi / OpsConsole の `Dockerfile`、`deploy/local/` の Kubernetes マニフェスト（namespace `agentic-ops`、Dapr コンポーネント `incident-pubsub` / `incident-state` / `secret-store`、開発用 Redis）、`scripts/` の運用スクリプト一式
 * プロンプト資産（`prompts/`）と Insights ナレッジフィクスチャ（`knowledge/`）
 * 固定シナリオ（`scenarios/`）— Scenario 001〜003
 * テスト（`tests/UnitTests`、`tests/ContractTests`、`tests/WorkflowTests`、`tests/IntegrationTests`）
@@ -65,7 +66,9 @@ dotnet run --project src/IncidentApi
 | エンドポイント | 説明 |
 | --- | --- |
 | `POST /incidents` | インシデントと証拠（モックデータ）を受け付け、ワークフローを開始（重複 ID は 409） |
+| `GET /incidents` | すべてのワークフロー実行の状態一覧（新しい順。運用コンソール用の読み取り専用ビュー） |
 | `GET /incidents/{incidentId}` | ワークフローの現在状態と最終結果を照会 |
+| `GET /incidents/{incidentId}/timeline` | 記録済みライフサイクルイベントのタイムライン（到着順。上限は `IncidentTimeline` 設定で有界） |
 | `POST /incidents/{incidentId}/approval` | 人間の承認/却下を外部イベントとして送達（HTTP リクエストは保持しない） |
 | `POST /demo/verification` | デモ専用: モック検証ランナーが報告する実測値を設定 |
 | `GET /healthz` / `GET /readyz` | liveness / readiness |
@@ -95,6 +98,34 @@ curl localhost:5000/incidents/inc-001
 Dapr サイドカーと併用する場合は `Dapr:Enabled=true` を設定すると、全ライフサイクルイベントが論理コンポーネント `incident-pubsub` のトピック `incident-lifecycle` に発行されます（サイドカー不達でも復旧パスは停止しません）。
 
 トレース・メトリクスを OTLP で送信する場合は、環境変数 `OTEL_EXPORTER_OTLP_ENDPOINT`（または設定 `OpenTelemetry:OtlpEndpoint`）にコレクタのエンドポイントを指定します。未指定の場合はエクスポータを登録しないため、ネットワーク依存なしで動作します。
+
+## 運用コンソール（Blazor）のローカル実行
+
+コマンドと JSON だけでは自律型運用の進行が分かりにくいため、ワークフローを視覚的に確認できる Blazor Server アプリを同梱しています。
+
+```bash
+# 1. IncidentApi を起動（既定 http://localhost:8080）
+ASPNETCORE_URLS=http://localhost:8080 dotnet run --project src/IncidentApi
+
+# 2. 別ターミナルで運用コンソールを起動し、ブラウザで http://localhost:5080 を開く
+ASPNETCORE_URLS=http://localhost:5080 dotnet run --project src/OpsConsole
+```
+
+| 画面 | 内容 |
+| --- | --- |
+| `/`（Incidents） | 実行中・完了済みインシデントの一覧と現在状態。承認待ちは強調表示。既定2秒間隔で自動更新 |
+| `/incidents/{incidentId}` | ワークフローのステートパイプライン（通過済み・現在・終端状態）、ライフサイクルタイムライン（各イベントの component / outcome / attempt / details）、承認待ち時の承認・却下ボタン |
+| `/scenarios` | バージョン管理されたシナリオの一覧と実行。モック検証値（healthy / unhealthy）を選んで成功・失敗パスを再現できる |
+
+設定（`OpsConsole` セクション、環境変数では `OpsConsole__IncidentApiBaseUrl` など）:
+
+| 設定 | 既定値 | 説明 |
+| --- | --- | --- |
+| `IncidentApiBaseUrl` | `http://localhost:8080` | 参照する IncidentApi のベース URL |
+| `ScenariosRoot` | `scenarios` | シナリオフィクスチャのディレクトリ |
+| `RefreshIntervalSeconds` | `2` | 画面のポーリング間隔（秒） |
+
+コンソールは IncidentApi の読み取りエンドポイントを参照し、人間の承認決定を外部イベントとして中継するだけです。復旧アクションの実行・ポリシー判断・状態遷移はすべてワークフロー側が所有します。
 
 ## モデル実行モード
 
@@ -142,32 +173,36 @@ scripts/bootstrap-local.sh
 # 2. コンテナイメージをビルドしてクラスタへインポート
 scripts/build-images.sh
 
-# 3. namespace / Redis / Daprコンポーネント / IncidentApi をデプロイ
+# 3. namespace / Redis / Daprコンポーネント / IncidentApi / OpsConsole をデプロイ
 scripts/deploy-local.sh
 
 # 4. API をローカルへポートフォワード（別ターミナルで維持）
 kubectl port-forward --namespace agentic-ops service/incident-api 8080:80
 
-# 5. シナリオを実行（送信 → 状態ポーリング → 承認送達 → 完了確認まで自動）
+# 5. 運用コンソールをポートフォワードしてブラウザで確認（別ターミナルで維持）
+kubectl port-forward --namespace agentic-ops service/ops-console 5080:80
+# ブラウザで http://localhost:5080 を開く
+
+# 6. シナリオを実行（送信 → 状態ポーリング → 承認送達 → 完了確認まで自動）
 scripts/run-scenario.sh 001-known-routing-error
 scripts/run-scenario.sh 001-known-routing-error --reject          # 却下パス
 scripts/run-scenario.sh 001-known-routing-error --no-decision     # 承認タイムアウト
 scripts/run-scenario.sh 003-dependency-timeout --verification-value degraded  # 検証失敗パス
 
-# 6. 障害注入（カオステスト）
+# 7. 障害注入（カオステスト）
 scripts/inject-failure.sh delete-api-pod   # ワークフロー実行中のPod削除
 scripts/inject-failure.sh restart-redis    # 開発用Redisの再起動
 
-# 7. ログ・ワークフロー状態・クラスタ診断を results/ に収集
+# 8. ログ・ワークフロー状態・クラスタ診断を results/ に収集
 API_URL=http://localhost:8080 scripts/collect-results.sh <incident-id>
 
-# 8. ワークフロー状態の確認・承認イベントの手動送達
+# 9. ワークフロー状態の確認・承認イベントの手動送達
 curl localhost:8080/incidents/<incident-id>
 curl -X POST localhost:8080/incidents/<incident-id>/approval \
   -H 'Content-Type: application/json' \
   -d '{"outcome":"approved","approver":"sre-lead","reason":"known pattern"}'
 
-# 9. ローカル環境の削除
+# 10. ローカル環境の削除
 k3d cluster delete agentic-ops
 ```
 

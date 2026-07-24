@@ -155,6 +155,30 @@ pass for `passed`, any failure yields `failed`, and an empty step list yields
 `MockVerificationCheckRunner` reports configured values per target and fails
 unconfigured targets instead of guessing.
 
+### OpsConsole
+
+A .NET Blazor (Interactive Server) application that makes a run of the
+controlled-autonomy lifecycle visible without reading raw JSON from the shell.
+It renders the workflow state pipeline, the recorded lifecycle timeline
+(component, outcome, attempt number, and details per event), the human approval
+gate, and the scenario catalog.
+
+The console is strictly a presentation and human-decision surface:
+
+* It only reads `GET /incidents`, `GET /incidents/{id}`, and
+  `GET /incidents/{id}/timeline`.
+* It starts a scenario by submitting the version-controlled fixture through the
+  same `POST /incidents` endpoint any other client uses, with a run-specific
+  incident identifier so the duplicate protection of the API stays meaningful.
+* It forwards a human approval decision as the external approval event; it never
+  executes remediation, never bypasses policy, and never changes workflow state.
+
+The timeline itself is produced by `IncidentTimelineRecorder`, an in-memory,
+bounded `ILifecycleEventPublisher` registered next to the Dapr publisher inside
+IncidentApi. Recording is observation only: it is not on the remediation path,
+and its retention limits (`IncidentTimeline` options) keep a long-lived host
+from growing without limit.
+
 ### Prompts and knowledge fixtures
 
 `prompts/` holds the versioned prompt files (`tier1-investigation/1.0.md`,

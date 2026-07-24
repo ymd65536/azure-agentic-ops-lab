@@ -264,3 +264,6 @@ label { display: block; margin: 0.5rem 0; font-size: 0.9rem; }
 label input, label select { display: block; margin-top: 0.2rem; padding: 0.35rem; min-width: 18rem; }
 
 .result-summary { margin-top: 0.5rem; }
+
+.summary-grid code,
+.summary-grid div { overflow-wrap: anywhere; }
