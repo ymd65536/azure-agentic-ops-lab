@@ -13,13 +13,19 @@ namespace AzureAgenticOps.IncidentApi;
 /// <param name="CurrentState">The most recently observed workflow state.</param>
 /// <param name="IsCompleted">Whether the workflow reached a terminal state.</param>
 /// <param name="Result">The final workflow result, when completed.</param>
+/// <param name="Title">The incident title, for display.</param>
+/// <param name="Severity">The reported incident severity, for display.</param>
+/// <param name="StartedAt">When the run was started.</param>
 public sealed record IncidentRunStatus(
     string IncidentId,
     string WorkflowInstanceId,
     string CorrelationId,
     IncidentWorkflowState CurrentState,
     bool IsCompleted,
-    IncidentWorkflowResult? Result);
+    IncidentWorkflowResult? Result,
+    string? Title = null,
+    string? Severity = null,
+    DateTimeOffset? StartedAt = null);
 
 /// <summary>
 /// Starts incident workflow runs as supervised background tasks and tracks their
@@ -36,6 +42,12 @@ public sealed class IncidentRunRegistry
 
         public required string CorrelationId { get; init; }
 
+        public required string Title { get; init; }
+
+        public required string Severity { get; init; }
+
+        public required DateTimeOffset StartedAt { get; init; }
+
         public volatile IncidentWorkflowState CurrentState = IncidentWorkflowState.Received;
 
         public IncidentWorkflowResult? Result;
@@ -46,26 +58,31 @@ public sealed class IncidentRunRegistry
     private readonly WorkflowStateObserver _stateObserver;
     private readonly ILogger<IncidentRunRegistry> _logger;
     private readonly IHostApplicationLifetime _lifetime;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>Initializes a new registry.</summary>
     /// <param name="orchestrator">The incident workflow orchestrator.</param>
     /// <param name="stateObserver">The observer tracking in-flight workflow states.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="lifetime">The host lifetime used to stop runs on shutdown.</param>
+    /// <param name="timeProvider">The time provider used to stamp run start times.</param>
     public IncidentRunRegistry(
         IncidentWorkflowOrchestrator orchestrator,
         WorkflowStateObserver stateObserver,
         ILogger<IncidentRunRegistry> logger,
-        IHostApplicationLifetime lifetime)
+        IHostApplicationLifetime lifetime,
+        TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(orchestrator);
         ArgumentNullException.ThrowIfNull(stateObserver);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(lifetime);
+        ArgumentNullException.ThrowIfNull(timeProvider);
         _orchestrator = orchestrator;
         _stateObserver = stateObserver;
         _logger = logger;
         _lifetime = lifetime;
+        _timeProvider = timeProvider;
     }
 
     /// <summary>
@@ -83,6 +100,9 @@ public sealed class IncidentRunRegistry
             IncidentId = incident.IncidentId,
             WorkflowInstanceId = $"wf-{Guid.NewGuid():N}",
             CorrelationId = $"corr-{Guid.NewGuid():N}",
+            Title = incident.Title,
+            Severity = incident.Severity,
+            StartedAt = _timeProvider.GetUtcNow(),
         };
 
         if (!_runs.TryAdd(incident.IncidentId, entry))
@@ -124,6 +144,14 @@ public sealed class IncidentRunRegistry
         return ToStatus(entry);
     }
 
+    /// <summary>Gets the status of every known run, newest first.</summary>
+    /// <returns>The status of all tracked runs.</returns>
+    public IReadOnlyList<IncidentRunStatus> GetStatuses() =>
+        [.. _runs.Values
+            .OrderByDescending(entry => entry.StartedAt)
+            .ThenBy(entry => entry.IncidentId, StringComparer.Ordinal)
+            .Select(ToStatus)];
+
     /// <summary>Gets the status of a run.</summary>
     /// <param name="incidentId">The incident identifier.</param>
     /// <returns>The status, or <see langword="null"/> when no run exists.</returns>
@@ -146,6 +174,9 @@ public sealed class IncidentRunRegistry
             entry.CorrelationId,
             currentState,
             result is not null,
-            result);
+            result,
+            entry.Title,
+            entry.Severity,
+            entry.StartedAt);
     }
 }

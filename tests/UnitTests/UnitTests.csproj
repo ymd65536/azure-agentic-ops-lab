@@ -25,6 +25,7 @@
     <ProjectReference Include="..\..\src\Tier2SreAgent\Tier2SreAgent.csproj" />
     <ProjectReference Include="..\..\src\ExecutionService\ExecutionService.csproj" />
     <ProjectReference Include="..\..\src\VerificationService\VerificationService.csproj" />
+    <ProjectReference Include="..\..\src\OpsConsole\OpsConsole.csproj" />
   </ItemGroup>
 
 </Project>

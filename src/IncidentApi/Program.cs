@@ -42,6 +42,13 @@ builder.Services.AddOptions<DaprPublisherOptions>()
     .Validate(options => options.HttpPort is > 0 and < 65536, "Dapr HttpPort must be a valid port.")
     .ValidateOnStart();
 
+builder.Services.AddOptions<IncidentTimelineOptions>()
+    .Bind(builder.Configuration.GetSection(IncidentTimelineOptions.SectionName))
+    .Validate(
+        options => options.MaxEventsPerIncident > 0 && options.MaxIncidents > 0,
+        "IncidentTimeline retention limits must be positive.")
+    .ValidateOnStart();
+
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
@@ -165,10 +172,14 @@ builder.Services.AddSingleton<ExternalEventApprovalGate>();
 builder.Services.AddSingleton<IApprovalGate>(provider => provider.GetRequiredService<ExternalEventApprovalGate>());
 builder.Services.AddSingleton<IIncidentWorkflowActivities, InProcessWorkflowActivities>();
 builder.Services.AddSingleton<WorkflowStateObserver>();
+builder.Services.AddSingleton(provider =>
+    provider.GetRequiredService<IOptions<IncidentTimelineOptions>>().Value);
+builder.Services.AddSingleton<IncidentTimelineRecorder>();
 builder.Services.AddHttpClient<DaprLifecycleEventPublisher>();
 builder.Services.AddSingleton<ILifecycleEventPublisher>(provider => new CompositeLifecycleEventPublisher(
 [
     provider.GetRequiredService<WorkflowStateObserver>(),
+    provider.GetRequiredService<IncidentTimelineRecorder>(),
     provider.GetRequiredService<DaprLifecycleEventPublisher>(),
 ]));
 builder.Services.AddSingleton(provider =>
@@ -213,6 +224,14 @@ app.MapPost("/incidents", (IncidentSubmission submission, InMemoryEvidenceStore 
         ? Results.Conflict(new { error = $"A workflow for incident '{submission.Incident.IncidentId}' already exists." })
         : Results.AcceptedAtRoute("GetIncidentStatus", new { incidentId = submission.Incident.IncidentId }, status);
 });
+
+// Read-only projections consumed by the operations console.
+app.MapGet("/incidents", (IncidentRunRegistry registry) => Results.Ok(registry.GetStatuses()));
+
+app.MapGet("/incidents/{incidentId}/timeline", (string incidentId, IncidentRunRegistry registry, IncidentTimelineRecorder timeline) =>
+    registry.GetStatus(incidentId) is null
+        ? Results.NotFound()
+        : Results.Ok(timeline.GetEvents(incidentId)));
 
 app.MapGet("/incidents/{incidentId}", (string incidentId, IncidentRunRegistry registry) =>
 {

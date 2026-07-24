@@ -1,0 +1,126 @@
+@page "/"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject IncidentApiClient ApiClient
+@inject Microsoft.Extensions.Options.IOptions<OpsConsoleOptions> Options
+@inject NavigationManager Navigation
+
+<PageTitle>Incidents - Agentic Ops Console</PageTitle>
+
+<h1>Incident runs</h1>
+<p class="lede">
+    Every incident submitted to the IncidentApi with the workflow state observed by the
+    orchestrator. The view refreshes every @Options.Value.RefreshIntervalSeconds seconds.
+</p>
+
+@if (_error is not null)
+{
+    <div class="alert alert-error">@_error</div>
+}
+
+@if (_runs is null)
+{
+    <p>Loading...</p>
+}
+else if (_runs.Count == 0)
+{
+    <p>
+        No incident runs yet. Start one from the <a href="/scenarios">scenarios</a> page.
+    </p>
+}
+else
+{
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Incident</th>
+                <th>Severity</th>
+                <th>State</th>
+                <th>Started</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (IncidentRunView run in _runs)
+            {
+                <tr>
+                    <td>
+                        <a href="@($"/incidents/{Uri.EscapeDataString(run.IncidentId)}")">@run.IncidentId</a>
+                        <div class="muted">@run.Title</div>
+                    </td>
+                    <td>@run.Severity</td>
+                    <td><StateBadge State="run.CurrentState" /></td>
+                    <td>@(run.StartedAt?.ToString("u") ?? "-")</td>
+                    <td>
+                        @if (run.CurrentState == IncidentWorkflowState.AwaitingApproval)
+                        {
+                            <span class="attention">Approval required</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<IncidentRunView>? _runs;
+    private string? _error;
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _cancellation;
+    private Task? _refreshLoop;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync(CancellationToken.None);
+
+        _cancellation = new CancellationTokenSource();
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(Options.Value.RefreshIntervalSeconds));
+        _refreshLoop = RefreshLoopAsync(_cancellation.Token);
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await _timer!.WaitForNextTickAsync(cancellationToken))
+            {
+                await LoadAsync(cancellationToken);
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The component was disposed; stopping the refresh loop is expected.
+        }
+    }
+
+    private async Task LoadAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            _runs = await ApiClient.GetRunsAsync(cancellationToken);
+            _error = null;
+        }
+        catch (HttpRequestException exception)
+        {
+            _error = $"The IncidentApi is not reachable: {exception.Message}";
+        }
+        catch (TaskCanceledException)
+        {
+            _error = "The IncidentApi did not respond within the configured timeout.";
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cancellation?.Cancel();
+        _timer?.Dispose();
+        if (_refreshLoop is not null)
+        {
+            await _refreshLoop;
+        }
+
+        _cancellation?.Dispose();
+    }
+}

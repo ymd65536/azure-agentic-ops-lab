@@ -1,0 +1,65 @@
+@* Renders the incident workflow as an ordered pipeline so the current position
+   and the states already passed through are visible at a glance. *@
+
+<div class="pipeline">
+    @foreach (IncidentWorkflowState state in Stages)
+    {
+        <div class="pipeline-stage @StageClass(state)">
+            <span class="pipeline-dot"></span>
+            <span class="pipeline-label">@state</span>
+            @if (VisitCount(state) > 1)
+            {
+                <span class="pipeline-count">x@(VisitCount(state))</span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private static readonly IncidentWorkflowState[] AllStages =
+    [
+        IncidentWorkflowState.Received,
+        IncidentWorkflowState.Classifying,
+        IncidentWorkflowState.RuleEvaluation,
+        IncidentWorkflowState.Tier1Investigation,
+        IncidentWorkflowState.AwaitingEvidence,
+        IncidentWorkflowState.Tier2Investigation,
+        IncidentWorkflowState.AwaitingApproval,
+        IncidentWorkflowState.Executing,
+        IncidentWorkflowState.Verifying,
+        IncidentWorkflowState.RollingBack,
+    ];
+
+    private static readonly IncidentWorkflowState[] TerminalStages =
+    [
+        IncidentWorkflowState.Resolved,
+        IncidentWorkflowState.Rejected,
+        IncidentWorkflowState.Failed,
+        IncidentWorkflowState.Terminated,
+    ];
+
+    /// <summary>The state the workflow is currently in.</summary>
+    [Parameter]
+    public IncidentWorkflowState CurrentState { get; set; }
+
+    /// <summary>The states the workflow already passed through, in order.</summary>
+    [Parameter]
+    public IReadOnlyList<IncidentWorkflowState> History { get; set; } = [];
+
+    private IEnumerable<IncidentWorkflowState> Stages =>
+        TerminalStages.Contains(CurrentState) ? [.. AllStages, CurrentState] : AllStages;
+
+    private int VisitCount(IncidentWorkflowState state) => History.Count(item => item == state);
+
+    private string StageClass(IncidentWorkflowState state)
+    {
+        if (state == CurrentState)
+        {
+            return TerminalStages.Contains(state)
+                ? $"pipeline-stage-terminal pipeline-stage-{state.ToString().ToLowerInvariant()}"
+                : "pipeline-stage-current";
+        }
+
+        return VisitCount(state) > 0 ? "pipeline-stage-visited" : "pipeline-stage-idle";
+    }
+}

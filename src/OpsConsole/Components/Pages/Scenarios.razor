@@ -1,0 +1,92 @@
+@page "/scenarios"
+@rendermode InteractiveServer
+@inject ScenarioCatalog Catalog
+@inject ScenarioLauncher Launcher
+@inject NavigationManager Navigation
+
+<PageTitle>Scenarios - Agentic Ops Console</PageTitle>
+
+<h1>Scenarios</h1>
+<p class="lede">
+    Start a version-controlled scenario against the running system. The incident receives a
+    run-specific identifier, so a scenario can be replayed without colliding with the duplicate
+    protection of the IncidentApi.
+</p>
+
+@if (_error is not null)
+{
+    <div class="alert alert-error">@_error</div>
+}
+
+<section class="card">
+    <label>
+        Mock verification value
+        <select @bind="_verificationValue">
+            <option value="healthy">healthy (verification passes)</option>
+            <option value="unhealthy">unhealthy (verification fails)</option>
+        </select>
+    </label>
+    <p class="muted">
+        The value the mock verification runner reports for each affected service after remediation.
+    </p>
+</section>
+
+@if (Catalog.Scenarios.Count == 0)
+{
+    <p>No scenario fixtures were found.</p>
+}
+else
+{
+    @foreach (ScenarioFixture scenario in Catalog.Scenarios)
+    {
+        <section class="card">
+            <h2>@scenario.Name</h2>
+            <p>@scenario.Incident.Title</p>
+            <p class="muted">@scenario.Incident.Description</p>
+            <dl class="summary-grid">
+                <div>
+                    <span class="muted">Affected services</span>
+                    <div>@string.Join(", ", scenario.Incident.AffectedServices)</div>
+                </div>
+                <div><span class="muted">Severity</span><div>@scenario.Incident.Severity</div></div>
+                <div><span class="muted">Evidence items</span><div>@scenario.Evidence.Count</div></div>
+                <div><span class="muted">Expected final state</span><div>@(scenario.ExpectedFinalState ?? "-")</div></div>
+            </dl>
+            @if (!string.IsNullOrWhiteSpace(scenario.ExpectedNotes))
+            {
+                <p class="muted">@scenario.ExpectedNotes</p>
+            }
+            <button class="button" disabled="@_launchInFlight" @onclick="() => StartAsync(scenario.Name)">
+                Run scenario
+            </button>
+        </section>
+    }
+}
+
+@code {
+    private string _verificationValue = "healthy";
+    private bool _launchInFlight;
+    private string? _error;
+
+    private async Task StartAsync(string scenarioName)
+    {
+        _launchInFlight = true;
+        try
+        {
+            string incidentId = await Launcher.StartAsync(scenarioName, _verificationValue, CancellationToken.None);
+            Navigation.NavigateTo($"/incidents/{Uri.EscapeDataString(incidentId)}");
+        }
+        catch (HttpRequestException exception)
+        {
+            _error = $"Starting the scenario failed: {exception.Message}";
+        }
+        catch (InvalidOperationException exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _launchInFlight = false;
+        }
+    }
+}

@@ -3,6 +3,7 @@
     <Project Path="src/ExecutionService/ExecutionService.csproj" />
     <Project Path="src/IncidentApi/IncidentApi.csproj" />
     <Project Path="src/IncidentWorkflow/IncidentWorkflow.csproj" />
+    <Project Path="src/OpsConsole/OpsConsole.csproj" />
     <Project Path="src/RuleEvaluator/RuleEvaluator.csproj" />
     <Project Path="src/ScribeService/ScribeService.csproj" />
     <Project Path="src/Tier1SreAgent/Tier1SreAgent.csproj" />

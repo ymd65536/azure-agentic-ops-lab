@@ -1,0 +1,228 @@
+@page "/incidents/{IncidentId}"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject IncidentApiClient ApiClient
+@inject Microsoft.Extensions.Options.IOptions<OpsConsoleOptions> Options
+
+<PageTitle>@IncidentId - Agentic Ops Console</PageTitle>
+
+<h1>@IncidentId</h1>
+
+@if (_error is not null)
+{
+    <div class="alert alert-error">@_error</div>
+}
+
+@if (_run is null)
+{
+    <p>No run was found for this incident.</p>
+}
+else
+{
+    <section class="card">
+        <div class="summary-grid">
+            <div><span class="muted">Title</span><div>@_run.Title</div></div>
+            <div><span class="muted">Severity</span><div>@_run.Severity</div></div>
+            <div><span class="muted">State</span><div><StateBadge State="_run.CurrentState" /></div></div>
+            <div><span class="muted">Workflow instance</span><div><code>@_run.WorkflowInstanceId</code></div></div>
+            <div><span class="muted">Correlation</span><div><code>@_run.CorrelationId</code></div></div>
+            <div><span class="muted">Started</span><div>@(_run.StartedAt?.ToString("u") ?? "-")</div></div>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Workflow</h2>
+        <WorkflowPipeline CurrentState="_run.CurrentState" History="_run.Result?.StateHistory ?? _visitedStates" />
+        @if (_run.Result is not null)
+        {
+            <p class="result-summary"><strong>@_run.Result.FinalState:</strong> @_run.Result.Summary</p>
+        }
+    </section>
+
+    @if (_run.CurrentState == IncidentWorkflowState.AwaitingApproval)
+    {
+        <section class="card card-attention">
+            <h2>Human approval required</h2>
+            <p>
+                The workflow is waiting for an external approval event. Policy, not the agent,
+                decided that this plan cannot be executed without a human decision.
+            </p>
+            <label>
+                Approver
+                <input type="text" @bind="_approver" />
+            </label>
+            <label>
+                Reason
+                <input type="text" @bind="_reason" />
+            </label>
+            <div class="button-row">
+                <button class="button button-approve" disabled="@_decisionInFlight"
+                        @onclick="() => SubmitDecisionAsync(ApprovalOutcome.Approved)">Approve</button>
+                <button class="button button-reject" disabled="@_decisionInFlight"
+                        @onclick="() => SubmitDecisionAsync(ApprovalOutcome.Rejected)">Reject</button>
+            </div>
+            @if (_decisionMessage is not null)
+            {
+                <p class="muted">@_decisionMessage</p>
+            }
+        </section>
+    }
+
+    <section class="card">
+        <h2>Lifecycle timeline</h2>
+        @if (_timeline.Count == 0)
+        {
+            <p class="muted">No lifecycle events were recorded yet.</p>
+        }
+        else
+        {
+            <ol class="timeline">
+                @foreach (IncidentLifecycleEvent lifecycleEvent in _timeline)
+                {
+                    <li class="timeline-item timeline-@(OutcomeClass(lifecycleEvent))">
+                        <div class="timeline-head">
+                            <span class="timeline-type">@lifecycleEvent.EventType</span>
+                            <span class="muted">@lifecycleEvent.Component</span>
+                            <span class="muted">@lifecycleEvent.OccurredAt.ToString("HH:mm:ss")</span>
+                            @if (lifecycleEvent.AttemptNumber > 1)
+                            {
+                                <span class="muted">attempt @lifecycleEvent.AttemptNumber</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(lifecycleEvent.Outcome))
+                            {
+                                <span class="timeline-outcome">@lifecycleEvent.Outcome</span>
+                            }
+                        </div>
+                        @if (lifecycleEvent.Details is { Count: > 0 })
+                        {
+                            <dl class="timeline-details">
+                                @foreach (KeyValuePair<string, string> detail in lifecycleEvent.Details)
+                                {
+                                    <dt>@detail.Key</dt>
+                                    <dd>@detail.Value</dd>
+                                }
+                            </dl>
+                        }
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+}
+
+@code {
+    /// <summary>The incident identifier taken from the route.</summary>
+    [Parameter]
+    public string IncidentId { get; set; } = string.Empty;
+
+    private IncidentRunView? _run;
+    private IReadOnlyList<IncidentLifecycleEvent> _timeline = [];
+    private readonly List<IncidentWorkflowState> _visitedStates = [];
+    private string? _error;
+    private string _approver = "ops-console";
+    private string _reason = "Reviewed in the operations console.";
+    private bool _decisionInFlight;
+    private string? _decisionMessage;
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _cancellation;
+    private Task? _refreshLoop;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync(CancellationToken.None);
+
+        _cancellation = new CancellationTokenSource();
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(Options.Value.RefreshIntervalSeconds));
+        _refreshLoop = RefreshLoopAsync(_cancellation.Token);
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await _timer!.WaitForNextTickAsync(cancellationToken))
+            {
+                await LoadAsync(cancellationToken);
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The component was disposed; stopping the refresh loop is expected.
+        }
+    }
+
+    private async Task LoadAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            _run = await ApiClient.GetRunAsync(IncidentId, cancellationToken);
+            if (_run is not null)
+            {
+                _timeline = await ApiClient.GetTimelineAsync(IncidentId, cancellationToken);
+                TrackVisitedState(_run.CurrentState);
+            }
+
+            _error = null;
+        }
+        catch (HttpRequestException exception)
+        {
+            _error = $"The IncidentApi is not reachable: {exception.Message}";
+        }
+        catch (TaskCanceledException)
+        {
+            _error = "The IncidentApi did not respond within the configured timeout.";
+        }
+    }
+
+    private void TrackVisitedState(IncidentWorkflowState state)
+    {
+        if (_visitedStates.Count == 0 || _visitedStates[^1] != state)
+        {
+            _visitedStates.Add(state);
+        }
+    }
+
+    private async Task SubmitDecisionAsync(ApprovalOutcome outcome)
+    {
+        _decisionInFlight = true;
+        try
+        {
+            bool accepted = await ApiClient.SubmitApprovalAsync(
+                IncidentId, outcome, _approver, _reason, CancellationToken.None);
+            _decisionMessage = accepted
+                ? $"The decision '{outcome}' was delivered to the workflow."
+                : "The workflow already received an approval decision.";
+            await LoadAsync(CancellationToken.None);
+        }
+        catch (HttpRequestException exception)
+        {
+            _decisionMessage = $"Delivering the decision failed: {exception.Message}";
+        }
+        finally
+        {
+            _decisionInFlight = false;
+        }
+    }
+
+    private static string OutcomeClass(IncidentLifecycleEvent lifecycleEvent) =>
+        lifecycleEvent.Outcome?.ToLowerInvariant() switch
+        {
+            null or "" => "neutral",
+            "succeeded" or "resolved" or "passed" or "approved" => "success",
+            "failed" or "rejected" or "terminated" or "timedout" => "failure",
+            _ => "neutral",
+        };
+
+    public async ValueTask DisposeAsync()
+    {
+        _cancellation?.Cancel();
+        _timer?.Dispose();
+        if (_refreshLoop is not null)
+        {
+            await _refreshLoop;
+        }
+
+        _cancellation?.Dispose();
+    }
+}
