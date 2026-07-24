@@ -14,6 +14,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="..\..\prompts\**" LinkBase="prompts" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\knowledge\**" LinkBase="knowledge" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

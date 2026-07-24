@@ -10,6 +10,10 @@ using AzureAgenticOps.Safety;
 using AzureAgenticOps.Tier1SreAgent;
 using AzureAgenticOps.VerificationService;
 using Microsoft.Extensions.Options;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -39,6 +43,32 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddMetrics();
 builder.Services.AddSingleton<AzureAgenticOps.Observability.AgenticOpsMetrics>();
+
+// OpenTelemetry SDK. Spans and metrics are always collected from the shared
+// ActivitySource and Meter; the OTLP exporter is opt-in so local runs and
+// tests stay free of network dependencies.
+OpenTelemetryBuilder openTelemetry = builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(
+        serviceName: builder.Configuration["OpenTelemetry:ServiceName"] ?? "incident-api",
+        serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString(),
+        serviceInstanceId: Environment.MachineName))
+    .WithTracing(tracing => tracing
+        .AddSource(AzureAgenticOps.Observability.ObservabilityNames.ActivitySourceName)
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation())
+    .WithMetrics(metrics => metrics
+        .AddMeter(AzureAgenticOps.Observability.ObservabilityNames.MeterName)
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation());
+if (!string.IsNullOrWhiteSpace(
+        builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ??
+        builder.Configuration["OpenTelemetry:OtlpEndpoint"]))
+{
+    string? configuredEndpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"];
+    openTelemetry.UseOtlpExporter(
+        OpenTelemetry.Exporter.OtlpExportProtocol.Grpc,
+        new Uri(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? configuredEndpoint!));
+}
 
 // Deterministic building blocks.
 builder.Services.AddSingleton(new ActionPolicyEvaluator(ActionPolicyOptions.DemoDefaults));
