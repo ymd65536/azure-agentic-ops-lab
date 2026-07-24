@@ -64,3 +64,38 @@ fixtures stay immutable), tagged with prompt name/version and model id from
    `scripts/run-scenario.sh`.
 4. **Chaos tests**: pod deletion during investigation, duplicate Pub/Sub
    events, Scribe outage, Redis restart, delayed approval.
+
+## Shadow-mode comparison metrics (implemented)
+
+When `AgentRuntime:Mode` is `Shadow`, the deterministic result is adopted by
+the workflow while the same input is also sent to the remote model. Both
+structured outputs are compared field by field and each invocation is written
+as one JSON Lines record (`AgentEvaluationRecord`) under `results/evaluations/`.
+Free-form prose (`reasoningSummary`, summaries, observation text) is never
+compared for equality.
+
+Compared structured fields:
+
+| Tier | Field | Comparison |
+| --- | --- | --- |
+| Tier 1 | `classification` | Exact enum match |
+| Tier 1 | `recommendedDisposition` | Exact enum match |
+| Tier 1 | `escalationRequired` | Both sides agree on whether disposition is `escalate` |
+| Tier 1 | `confidenceDelta` | Absolute difference of confidence values (recorded, not pass/fail) |
+| Tier 1 | `proposedActionType` | Exact action-type match (including absence) |
+| Tier 1 | `missingEvidence` | Set equality of requested evidence items |
+| Tier 2 | `riskLevel` | Exact enum match |
+| Tier 2 | `requiresApproval` | Exact boolean match |
+| Tier 2 | `actionTypes` | Ordered sequence equality of action types |
+| Tier 2 | `verificationSteps` | Sequence equality of (checkType, target) pairs |
+| Tier 2 | `rollbackPresence` | Both sides agree on whether rollback steps exist |
+
+Each record also captures: incident id, agent role, execution mode, scenario
+name, prompt name/version, model id, start time, duration, input/output tokens,
+tool call count, knowledge retrieval count, schema validation result, repair
+attempt count, classification/disposition/risk level of the shadow output,
+proposed action types, and an error category (`timeout`, `invalid_output`,
+`cancelled`, `shadow_failure`) when the shadow invocation failed. Shadow
+failures never interrupt the deterministic workflow, and shadow output never
+reaches approval decisions or the ExecutionService. Incident ids appear only
+in records, traces, and logs — never as metric labels.

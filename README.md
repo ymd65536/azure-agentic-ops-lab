@@ -96,6 +96,41 @@ Dapr サイドカーと併用する場合は `Dapr:Enabled=true` を設定する
 
 トレース・メトリクスを OTLP で送信する場合は、環境変数 `OTEL_EXPORTER_OTLP_ENDPOINT`（または設定 `OpenTelemetry:OtlpEndpoint`）にコレクタのエンドポイントを指定します。未指定の場合はエクスポータを登録しないため、ネットワーク依存なしで動作します。
 
+## モデル実行モード
+
+`IAgentModelClient` の実体は `AgentRuntime` 設定セクションの実行モードで選択します。デフォルトは `Deterministic` で、外部通信は一切発生しません。未知のモード名は起動時検証で拒否されます。
+
+| モード | 動作 |
+| --- | --- |
+| `Deterministic`（デフォルト） | 決定的スタブモデルクライアントのみを使用。外部通信なし |
+| `RemoteModel` | リモートモデルの構造化出力をワークフローで使用（`RemoteModel` セクションの `Endpoint` / `ModelId` が必須） |
+| `Shadow` | 決定的結果を採用しつつ、同一入力をリモートモデルへも送信し、構造化比較を評価レコードとして `results/evaluations/` に JSON Lines で記録 |
+
+設定例（`appsettings.json` または環境変数）:
+
+```json
+{
+  "AgentRuntime": {
+    "Mode": "Deterministic",
+    "RemoteModel": {
+      "Endpoint": "https://<foundry-endpoint>",
+      "ModelId": "<model-or-deployment-id>",
+      "AuthMode": "DefaultAzureCredential",
+      "TimeoutSeconds": 30,
+      "MaxAttempts": 2
+    },
+    "Shadow": {
+      "TimeoutSeconds": 30,
+      "EvaluationOutputDirectory": "results/evaluations"
+    }
+  }
+}
+```
+
+* 認証は `DefaultAzureCredential`（デフォルト）または `ApiKeySecretReference`（`ApiKeySecretName` でシークレット名のみを参照）です。資格情報の生値は設定・コード・ログ・評価レコードのいずれにも置きません。
+* Shadow モードのリモートモデル出力は、ワークフロー・承認判定・ExecutionService に一切渡されません。リモート側の失敗・タイムアウト・無効出力は評価レコードに記録されるだけで、決定的ワークフローを停止させません。
+* Microsoft Foundry への実際のワイヤ実装（`IChatCompletionTransport`）は未実装です。デフォルトでは安全に失敗するプレースホルダーが登録されており、SDK/API 仕様確定後に差し替えます（`src/BuildingBlocks/AgentRuntime/ChatCompletionTransport.cs` の TODO を参照）。
+
 ## ローカル Kubernetes での実行
 
 前提ツール: `docker`、`k3d`、`kubectl`、`dapr` CLI、`jq`、`curl`
@@ -178,7 +213,7 @@ Dapr コンポーネントの論理名（`incident-pubsub` / `incident-state` / 
 * Dapr Service Invocation（`IIncidentWorkflowActivities` の Dapr サービス呼び出し実装。ライフサイクル Pub/Sub 発行は実装済み）
 * ExecutionService / VerificationService / ScribeService の独立 Dapr サービスホスト化（現在は IncidentApi 内でインプロセス結線）
 * Scribe の Pub/Sub 購読（`incident-lifecycle` トピックの消費）
-* 実 LLM（Azure OpenAI / Microsoft Foundry）接続（現在は決定的スタブモデルクライアント）
+* 実 LLM（Azure OpenAI / Microsoft Foundry）接続 — 実行モード（`Deterministic` / `RemoteModel` / `Shadow`）、`RemoteAgentModelClient`、Shadow 比較・評価レコード基盤は実装済み。Microsoft Foundry へのワイヤ実装（`IChatCompletionTransport` の具象トランスポート）と Dapr シークレットストア経由の API キー解決は未実装
 * AKS デプロイ（`infra/` の Azure リソース定義。ローカル k3d デプロイは実装済み）
 
 詳細は [`docs/architecture.md`](docs/architecture.md) と [`docs/evaluation-plan.md`](docs/evaluation-plan.md) を参照してください。
