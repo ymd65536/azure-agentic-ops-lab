@@ -9,6 +9,7 @@ using AzureAgenticOps.RuleEvaluator;
 using AzureAgenticOps.Safety;
 using AzureAgenticOps.Tier1SreAgent;
 using AzureAgenticOps.VerificationService;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
@@ -17,6 +18,13 @@ using OpenTelemetry.Trace;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddOptions<AgentRuntimeOptions>()
+    .Bind(builder.Configuration.GetSection(AgentRuntimeOptions.SectionName))
+    .Validate(options =>
+    {
+        return options.Validate(out _);
+    }, "The AgentRuntime configuration is invalid. Check Mode (Deterministic, RemoteModel, Shadow) and the RemoteModel section.")
+    .ValidateOnStart();
 builder.Services.AddOptions<IncidentApiOptions>()
     .Bind(builder.Configuration.GetSection(IncidentApiOptions.SectionName))
     .Validate(options => options.ApprovalTimeoutSeconds > 0, "ApprovalTimeoutSeconds must be positive.")
@@ -83,8 +91,57 @@ builder.Services.AddSingleton(provider => new MockExecutionService(
     provider.GetRequiredService<ActionPolicyEvaluator>(),
     provider.GetRequiredService<TimeProvider>()));
 
-// Agent runtime. The deterministic stub stands in for a remote model endpoint
-// until the remote model integration milestone.
+// Agent runtime. The execution mode selects the model client composition:
+//   Deterministic (default) — only the deterministic stub; no external communication.
+//   RemoteModel — the remote model's structured output is used by the workflow.
+//   Shadow — the deterministic result is adopted while the same input is sent to
+//   the remote model and the structured comparison is recorded for evaluation.
+// The remote transport defaults to an unconfigured placeholder that fails safely;
+// TODO: register the Microsoft Foundry IChatCompletionTransport once the SDK and
+// endpoint API surface are confirmed (see ChatCompletionTransport.cs).
+builder.Services.TryAddSingleton<IChatCompletionTransport, UnconfiguredChatCompletionTransport>();
+builder.Services.AddSingleton(provider => new DeterministicStubModelClient(
+    provider.GetRequiredService<IncidentRuleEvaluator>(),
+    provider.GetRequiredService<ActionPolicyEvaluator>(),
+    provider.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton<IEvaluationRecordWriter>(provider =>
+{
+    AgentRuntimeOptions options = provider.GetRequiredService<IOptions<AgentRuntimeOptions>>().Value;
+    return new JsonLinesEvaluationRecordWriter(
+        options.Shadow.EvaluationOutputDirectory,
+        provider.GetRequiredService<TimeProvider>());
+});
+builder.Services.AddSingleton<IAgentModelClient>(provider =>
+{
+    AgentRuntimeOptions options = provider.GetRequiredService<IOptions<AgentRuntimeOptions>>().Value;
+    if (!options.TryGetMode(out AgentExecutionMode mode))
+    {
+        throw new InvalidOperationException($"Unknown AgentRuntime:Mode '{options.Mode}'.");
+    }
+
+    DeterministicStubModelClient deterministic = provider.GetRequiredService<DeterministicStubModelClient>();
+    TimeProvider timeProvider = provider.GetRequiredService<TimeProvider>();
+
+    return mode switch
+    {
+        AgentExecutionMode.Deterministic => deterministic,
+        AgentExecutionMode.RemoteModel => new RemoteAgentModelClient(
+            provider.GetRequiredService<IChatCompletionTransport>(),
+            options.RemoteModel,
+            timeProvider),
+        AgentExecutionMode.Shadow => new ShadowAgentModelClient(
+            deterministic,
+            new RemoteAgentModelClient(
+                provider.GetRequiredService<IChatCompletionTransport>(),
+                options.RemoteModel,
+                timeProvider),
+            provider.GetRequiredService<IEvaluationRecordWriter>(),
+            TimeSpan.FromSeconds(options.Shadow.TimeoutSeconds),
+            options.Shadow.ScenarioName,
+            timeProvider),
+        _ => throw new InvalidOperationException($"Unknown AgentRuntime:Mode '{options.Mode}'."),
+    };
+});
 builder.Services.AddSingleton<IPromptStore>(provider =>
 {
     IncidentApiOptions options = provider.GetRequiredService<IOptions<IncidentApiOptions>>().Value;
@@ -95,10 +152,6 @@ builder.Services.AddSingleton(provider =>
     IncidentApiOptions options = provider.GetRequiredService<IOptions<IncidentApiOptions>>().Value;
     return new InsightsCapability(KnowledgeBase.LoadFromFile(ResolveContentPath(provider, options.KnowledgeBasePath)));
 });
-builder.Services.AddSingleton<IAgentModelClient>(provider => new DeterministicStubModelClient(
-    provider.GetRequiredService<IncidentRuleEvaluator>(),
-    provider.GetRequiredService<ActionPolicyEvaluator>(),
-    provider.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton(provider => new AzureAgenticOps.Tier1SreAgent.Tier1SreAgent(
     provider.GetRequiredService<IAgentModelClient>(),
     provider.GetRequiredService<IPromptStore>(),
