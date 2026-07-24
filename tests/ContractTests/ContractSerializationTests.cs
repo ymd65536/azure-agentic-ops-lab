@@ -188,6 +188,57 @@ public class ContractSerializationTests
     }
 
     [Fact]
+    public void AgentExecutionMode_SerializesToStableStringValues()
+    {
+        Assert.Equal("\"deterministic\"", ContractSerialization.Serialize(AgentExecutionMode.Deterministic));
+        Assert.Equal("\"remoteModel\"", ContractSerialization.Serialize(AgentExecutionMode.RemoteModel));
+        Assert.Equal("\"shadow\"", ContractSerialization.Serialize(AgentExecutionMode.Shadow));
+    }
+
+    [Fact]
+    public void AgentEvaluationRecord_SerializesToStableJson()
+    {
+        var record = new AgentEvaluationRecord(
+            SchemaVersions.V1,
+            "inc-001",
+            "tier1",
+            AgentExecutionMode.Shadow,
+            "scenario-001",
+            "tier1-investigation",
+            "1.0",
+            "demo-model",
+            FixedTime,
+            123.5,
+            100,
+            40,
+            ToolCallCount: 0,
+            KnowledgeRetrievalCount: 1,
+            SchemaValidationSucceeded: true,
+            RepairAttemptCount: 0,
+            IncidentClassification.Known,
+            AgentDisposition.Resolve,
+            RiskLevel: null,
+            ProposedActionTypes: ["RestartDemoWorkload"],
+            ErrorCategory: null,
+            Comparison: new EvaluationComparison(false, ["classification"], ["recommendedDisposition"], 0.25));
+
+        string json = ContractSerialization.Serialize(record);
+
+        Assert.Equal(
+            "{\"schemaVersion\":\"1.0\",\"incidentId\":\"inc-001\",\"agentRole\":\"tier1\"," +
+            "\"executionMode\":\"shadow\",\"scenarioName\":\"scenario-001\"," +
+            "\"promptName\":\"tier1-investigation\",\"promptVersion\":\"1.0\",\"modelId\":\"demo-model\"," +
+            "\"startedAt\":\"2026-07-01T09:15:00+00:00\",\"durationMs\":123.5," +
+            "\"inputTokens\":100,\"outputTokens\":40,\"toolCallCount\":0,\"knowledgeRetrievalCount\":1," +
+            "\"schemaValidationSucceeded\":true,\"repairAttemptCount\":0," +
+            "\"classification\":\"known\",\"disposition\":\"resolve\"," +
+            "\"proposedActionTypes\":[\"RestartDemoWorkload\"]," +
+            "\"comparison\":{\"matchesDeterministicResult\":false,\"matchedFields\":[\"classification\"]," +
+            "\"mismatchedFields\":[\"recommendedDisposition\"],\"confidenceDelta\":0.25}}",
+            json);
+    }
+
+    [Fact]
     public void UnknownEnumValue_FailsInsteadOfGuessing()
     {
         Assert.ThrowsAny<System.Text.Json.JsonException>(() =>
