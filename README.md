@@ -55,6 +55,67 @@ dotnet test
 シナリオファイルはテストがリポジトリの `scenarios/` から直接読み込みます。
 `tests/IntegrationTests` は IncidentApi ホストをインメモリで起動し、HTTP 経由でシナリオをエンドツーエンドに実行します。
 
+## 再現手順（ローカル・エンドツーエンド）
+
+Kubernetes・Azure・実 LLM なしで、インシデント受付から検証・記録までのワークフローを再現できます。
+Kubernetes 上での再現は [ローカル Kubernetes での実行](#ローカル-kubernetes-での実行) を参照してください。
+
+前提ツール: .NET SDK 10.0、`curl`、`jq`（`scripts/run-scenario.sh` が使用）
+
+```bash
+# 0. リポジトリを取得
+git clone https://github.com/ymd65536/azure-agentic-ops-lab.git
+cd azure-agentic-ops-lab
+
+# 1. ビルド（warnings-as-errors）
+dotnet build
+
+# 2. テスト（Unit / Contract / Workflow / Integration。ネットワーク不要）
+dotnet test
+
+# 3. IncidentApi を起動（決定的スタブモデル、外部依存なし）
+ASPNETCORE_URLS=http://localhost:8080 dotnet run --project src/IncidentApi
+
+# 4. 別ターミナルでシナリオをエンドツーエンド実行
+#    （検証値の設定 → インシデント送信 → 状態ポーリング → 承認送達 → 完了確認）
+scripts/run-scenario.sh 001-known-routing-error
+scripts/run-scenario.sh 002-ambiguous-404-increase
+scripts/run-scenario.sh 003-dependency-timeout
+
+# 5. 状態とライフサイクルタイムラインを確認（<incident-id> は手順4の出力に表示）
+curl -s localhost:8080/incidents | jq -r '.[] | "\(.incidentId) \(.currentState)"'
+curl -s localhost:8080/incidents/<incident-id> | jq .
+curl -s localhost:8080/incidents/<incident-id>/timeline | jq .
+
+# 6. 収集（ワークフロー状態を results/<timestamp>/ に保存）
+API_URL=http://localhost:8080 scripts/collect-results.sh <incident-id>
+```
+
+`scripts/run-scenario.sh` は実行ごとにインシデント ID へタイムスタンプを付与するため、同じシナリオを何度でも再実行できます（`--incident-id` で固定も可能）。
+API プロセスを停止すると、インメモリのワークフロー状態とタイムラインは破棄されます。
+
+### 分岐パスの再現
+
+| コマンド | 再現する経路 | 実行例の最終状態 |
+| --- | --- | --- |
+| `scripts/run-scenario.sh 001-known-routing-error` | 既知パターン一致 → Tier 1 → 承認 → 実行 → 検証成功 | `resolved` |
+| `scripts/run-scenario.sh 001-known-routing-error --reject` | 人間が却下し、アクションを実行しない | `rejected` |
+| `scripts/run-scenario.sh 001-known-routing-error --no-decision` | 承認イベントが届かず `awaitingApproval` のまま待機し、タイムアウトで安全に停止（スクリプト側は `--timeout` で打ち切り） | `awaitingApproval` → 停止 |
+| `scripts/run-scenario.sh 002-ambiguous-404-increase` | 未知パターン → Tier 2 エスカレーション → 計画 → 実行 → 検証 | `resolved` |
+| `scripts/run-scenario.sh 003-dependency-timeout --verification-value degraded` | 復旧後も検証が失敗し、無限リトライせず有界で停止 | `failed` |
+
+各シナリオの設計上の期待値は `scenarios/<name>/expected-result.json` に固定されており、`dotnet test`（ワークフロー／統合テスト）で検証されます。
+承認要否は `ActionPolicyEvaluator` のリスク判定が決定するため、Tier 2 が低リスクアクションのみを提案した場合は承認待ちにならずに実行へ進みます。
+
+### ブラウザで再現を確認する
+
+手順3のあと、別ターミナルで運用コンソールを起動すると、状態遷移・タイムライン・承認操作を画面から再現できます（詳細は [運用コンソール（Blazor）のローカル実行](#運用コンソールblazorのローカル実行)）。
+
+```bash
+ASPNETCORE_URLS=http://localhost:5080 dotnet run --project src/OpsConsole
+# ブラウザで http://localhost:5080 を開き、/scenarios から実行・承認する
+```
+
 ## IncidentApi のローカル実行
 
 ```bash
