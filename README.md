@@ -136,7 +136,7 @@ curl -X POST localhost:8080/incidents/<incident-id>/approval \
 k3d cluster delete agentic-ops
 ```
 
-Dapr コンポーネントの論理名（`incident-pubsub` / `incident-state` / `secret-store`）は環境間で不変です。ローカルでは Redis と Kubernetes Secrets を下位実装として使用し、Azure 環境では Service Bus / Azure ステートストア / Key Vault に差し替えます。
+Dapr コンポーネントの論理名（`incident-pubsub` / `incident-state`）は環境間で不変です。ローカルでは Redis を下位実装として使用し、Azure 環境では Service Bus / Azure ステートストアに差し替えます。今回のローカル Milestone では、シークレットストア依存を避けるため `secret-store` は展開対象外です。
 
 ## シナリオの追加方法
 

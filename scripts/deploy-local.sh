@@ -7,7 +7,12 @@ DEPLOY_DIR="${REPO_ROOT}/deploy/local"
 
 kubectl apply -f "${DEPLOY_DIR}/namespace.yaml"
 kubectl apply -f "${DEPLOY_DIR}/redis.yaml"
-kubectl apply -f "${DEPLOY_DIR}/dapr-components/"
+for f in "${DEPLOY_DIR}/dapr-components"/*.yaml; do
+  if [[ "$(basename "$f")" == "secret-store.yaml" ]]; then
+    continue
+  fi
+  kubectl apply -f "$f"
+done
 kubectl apply -f "${DEPLOY_DIR}/incident-api.yaml"
 
 kubectl rollout status deployment/redis --namespace agentic-ops --timeout 120s
