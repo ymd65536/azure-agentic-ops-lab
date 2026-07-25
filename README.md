@@ -22,7 +22,7 @@ Detect → Classify → Investigate → Escalate → Plan → Approve → Execut
 * IncidentWorkflow（`src/IncidentWorkflow`）— 明示的ステートマシンによる決定的オーケストレーション、有界リトライ、外部承認イベント抽象、ライフサイクルイベント発行、ロールバック、安全な停止
 * ExecutionService（`src/ExecutionService`）— ポリシー検証・承認ゲート・冪等性台帳を備えたモック（dry-run）実行
 * VerificationService（`src/VerificationService`）— 決定的な検証チェックの集約（全チェック合格で passed、チェックなしは inconclusive）
-* ScribeService（`src/ScribeService`）— 重複イベント耐性のあるタイムライン構築と、構造化イベントからの決定的なポストインシデントレコード生成
+* ScribeService（`src/ScribeService`）— 重複イベント耐性のあるタイムライン構築と、構造化イベントからの決定的なポストインシデントレコード生成。ASP.NET Core ホストとして Dapr Pub/Sub（`incident-pubsub` / `incident-lifecycle`）をプログラム型サブスクリプションで購読し、タイムライン・ポストインシデントレコードを HTTP で提供（Dapr なしでもイベントを直接 POST して検証可能）
 * Observability 基盤（`src/BuildingBlocks/Observability`）— OpenTelemetry 互換の ActivitySource / Meter、相関タグ規約（incident.id、correlation.id 等）、AGENTS.md §13 の推奨メトリクス一式
 * IncidentApi ホスト（`src/IncidentApi`）— インシデント受付・状態照会・承認外部イベント・ヘルスチェックを提供する ASP.NET Core 最小 API。全ライブラリを DI で結線し、決定的スタブモデルクライアントでワークフロー全体をローカル実行可能。Dapr サイドカー経由の `incident-pubsub` ライフサイクルイベント発行（無効時は no-op）。OpenTelemetry SDK によるトレース・メトリクス収集（OTLP エクスポータはオプトイン）
 * OpsConsole（`src/OpsConsole`）— .NET Blazor（Interactive Server）による運用コンソール。ワークフローの状態遷移・ライフサイクルタイムライン・人間の承認・シナリオ実行を視覚的に確認できる。IncidentApi を読み取り、人間の判断を中継するだけで、復旧アクションは実行しない
@@ -31,7 +31,7 @@ Detect → Classify → Investigate → Escalate → Plan → Approve → Execut
 * 固定シナリオ（`scenarios/`）— Scenario 001〜003
 * テスト（`tests/UnitTests`、`tests/ContractTests`、`tests/WorkflowTests`、`tests/IntegrationTests`）
 
-Kubernetes、Azure リソース、実 LLM API は このMilestoneでは使用しません。Dapr Pub/Sub 発行はオプトイン（`Dapr:Enabled`）です。
+ローカルの動作確認に Kubernetes・Azure リソース・実 LLM API は不要です（デフォルト構成では外部通信は発生しません）。Dapr Pub/Sub 発行（`Dapr:Enabled`）、Dapr Workflow ホスティング（`Workflow:Engine=Dapr`）、実 LLM 接続（`AgentRuntime:Mode`）、AKS デプロイ（[`docs/azure-deployment.md`](docs/azure-deployment.md)）はすべてオプトインです。
 
 ## 必要環境
 
@@ -221,7 +221,7 @@ ASPNETCORE_URLS=http://localhost:5080 dotnet run --project src/OpsConsole
 
 * 認証は `DefaultAzureCredential`（デフォルト）または `ApiKeySecretReference`（`ApiKeySecretName` でシークレット名のみを参照）です。資格情報の生値は設定・コード・ログ・評価レコードのいずれにも置きません。
 * Shadow モードのリモートモデル出力は、ワークフロー・承認判定・ExecutionService に一切渡されません。リモート側の失敗・タイムアウト・無効出力は評価レコードに記録されるだけで、決定的ワークフローを停止させません。
-* Microsoft Foundry への実際のワイヤ実装（`IChatCompletionTransport`）は未実装です。デフォルトでは安全に失敗するプレースホルダーが登録されており、SDK/API 仕様確定後に差し替えます（`src/BuildingBlocks/AgentRuntime/ChatCompletionTransport.cs` の TODO を参照）。
+* ワイヤ実装は `FoundryChatCompletionTransport`（OpenAI 互換 chat-completions。Azure OpenAI 形式の `ApiVersion` クエリにも対応）です。`RemoteModel:Endpoint` と `ModelId` が設定されている場合のみ登録され、未設定時は安全に失敗するプレースホルダーのままです。認証は `DefaultAzureCredential`（`TokenScope` 設定可）、または Dapr の `secret-store` コンポーネント経由で API キーを名前解決する `ApiKeySecretReference` を使用します。429/5xx/ネットワークエラーは一時的失敗として `RemoteAgentModelClient` の有界リトライに分類され、エラー応答本文はログ・例外メッセージに含めません。
 
 ## ローカル Kubernetes での実行
 
@@ -234,7 +234,8 @@ scripts/bootstrap-local.sh
 # 2. コンテナイメージをビルドしてクラスタへインポート
 scripts/build-images.sh
 
-# 3. namespace / Redis / Daprコンポーネント / IncidentApi / OpsConsole をデプロイ
+# 3. namespace / Redis / Daprコンポーネント / IncidentApi / OpsConsole / ScribeService をデプロイ
+#    （IncidentApi は Dapr サイドカー有効でライフサイクルイベントを発行し、ScribeService が購読）
 scripts/deploy-local.sh
 
 # 4. API をローカルへポートフォワード（別ターミナルで維持）
@@ -257,13 +258,18 @@ scripts/inject-failure.sh restart-redis    # 開発用Redisの再起動
 # 8. ログ・ワークフロー状態・クラスタ診断を results/ に収集
 API_URL=http://localhost:8080 scripts/collect-results.sh <incident-id>
 
-# 9. ワークフロー状態の確認・承認イベントの手動送達
+# 9. Scribe のタイムラインとポストインシデントレコードを確認（別ターミナルで維持）
+kubectl port-forward --namespace agentic-ops service/scribe-service 8090:80
+curl -s localhost:8090/incidents/<incident-id>/timeline | jq .
+curl -s localhost:8090/incidents/<incident-id>/record | jq .
+
+# 10. ワークフロー状態の確認・承認イベントの手動送達
 curl localhost:8080/incidents/<incident-id>
 curl -X POST localhost:8080/incidents/<incident-id>/approval \
   -H 'Content-Type: application/json' \
   -d '{"outcome":"approved","approver":"sre-lead","reason":"known pattern"}'
 
-# 10. ローカル環境の削除
+# 11. ローカル環境の削除
 k3d cluster delete agentic-ops
 ```
 
@@ -303,13 +309,48 @@ Dapr コンポーネントの論理名（`incident-pubsub` / `incident-state`）
 
 * スタブモデルも安全境界の内側: `DeterministicStubModelClient` はルールカタログとポリシー評価から構造化出力を合成するため、許可リスト外のアクションを提案できません。承認が必要なアクションを Tier 1 の高速パスに載せず、Tier 2（承認付き）へ決定的にエスカレーションします。実 LLM への差し替えは `IAgentModelClient` の実装交換のみで行えます。
 
+## ワークフローのホスティングエンジン
+
+`Workflow:Engine` 設定でワークフローの実行基盤を選択します。どちらのエンジンでも同じ決定的オーケストレータ（`IncidentWorkflowOrchestrator`）と状態遷移・有界リトライが使われます。
+
+| エンジン | 動作 |
+| --- | --- |
+| `InProcess`（デフォルト） | IncidentApi ホスト内でインプロセス実行。サイドカー等の外部依存なし |
+| `Dapr` | Dapr Workflow として永続実行。各アクティビティ（証拠収集・ルール評価・Tier 1/2・実行・検証・ライフサイクル発行）はジャーナルされたワークフローアクティビティとして実行され、リプレイ安全。人間の承認は durable な外部イベント（`approval-decision`）として送達され、プロセス再起動後も承認待ちが継続 |
+
+`Dapr` エンジンには Workflow が有効な Dapr サイドカーが必要です（例: `dapr run --app-id incident-api --app-port 8080 -- dotnet run --project src/IncidentApi` と環境変数 `Workflow__Engine=Dapr`）。ワークフロー時刻はリプレイ安全な `WorkflowContext.CurrentUtcDateTime` から供給され、メトリクスはアクティビティ側でのみ記録されるため、リプレイで二重計上されません。
+
+## ScribeService（Pub/Sub 購読）のローカル実行
+
+ScribeService は `incident-pubsub` の `incident-lifecycle` トピックを購読する非同期コンシューマです。復旧のクリティカルパスには乗らず、停止しても調査・復旧・検証を妨げません。
+
+```bash
+# Dapr なしで起動し、イベントを直接 POST して検証できる
+ASPNETCORE_URLS=http://localhost:8091 dotnet run --project src/ScribeService
+curl -X POST localhost:8091/events/incident-lifecycle   -H 'Content-Type: application/json'   -d '{"schemaVersion":"1.0","eventId":"evt-1","incidentId":"inc-001","correlationId":"corr-1","eventType":"StateChanged","component":"IncidentWorkflow","occurredAt":"2026-07-25T12:00:00Z","outcome":"resolved"}'
+curl -s localhost:8091/incidents/inc-001/timeline
+curl -s localhost:8091/incidents/inc-001/record
+```
+
+| エンドポイント | 説明 |
+| --- | --- |
+| `GET /dapr/subscribe` | プログラム型 Dapr サブスクリプション宣言（`incident-pubsub` / `incident-lifecycle`） |
+| `POST /events/incident-lifecycle` | ライフサイクルイベントの受信。CloudEvents エンベロープと生 JSON の両方を受け付け、イベント ID で重複排除。不正ペイロードは再配送されないよう `DROP` で応答 |
+| `GET /incidents/{incidentId}/timeline` | 発生時刻順のタイムライン |
+| `GET /incidents/{incidentId}/record` | 決定的なポストインシデントレコードのドラフト |
+| `GET /healthz` / `GET /readyz` | liveness / readiness |
+
+## Azure（AKS）へのデプロイ
+
+`infra/main.bicep` が AKS（Dapr クラスター拡張・Workload ID 有効）、ACR、Service Bus、Table Storage、Key Vault、Log Analytics をプロビジョニングし、`deploy/azure/dapr-components/` が同じ論理名（`incident-pubsub` / `incident-state` / `secret-store`）の Azure 実装を提供します。手順は [`docs/azure-deployment.md`](docs/azure-deployment.md) を参照してください。
+
+```bash
+RESOURCE_GROUP=<resource-group> NAME_PREFIX=<prefix> scripts/deploy-azure.sh
+```
+
 ## 未実装の機能（今後のMilestone）
 
-* Dapr Workflow ホスティング（現在の `IncidentWorkflow` オーケストレータを Dapr Workflow 上で実行。現在は IncidentApi ホスト内のインプロセス実行）
-* Dapr Service Invocation（`IIncidentWorkflowActivities` の Dapr サービス呼び出し実装。ライフサイクル Pub/Sub 発行は実装済み）
-* ExecutionService / VerificationService / ScribeService の独立 Dapr サービスホスト化（現在は IncidentApi 内でインプロセス結線）
-* Scribe の Pub/Sub 購読（`incident-lifecycle` トピックの消費）
-* 実 LLM（Azure OpenAI / Microsoft Foundry）接続 — 実行モード（`Deterministic` / `RemoteModel` / `Shadow`）、`RemoteAgentModelClient`、Shadow 比較・評価レコード基盤は実装済み。Microsoft Foundry へのワイヤ実装（`IChatCompletionTransport` の具象トランスポート）と Dapr シークレットストア経由の API キー解決は未実装
-* AKS デプロイ（`infra/` の Azure リソース定義。ローカル k3d デプロイは実装済み）
+* Dapr Service Invocation（`IIncidentWorkflowActivities` の Dapr サービス呼び出し実装。ライフサイクル Pub/Sub 発行・購読は実装済み）
+* ExecutionService / VerificationService の独立 Dapr サービスホスト化（現在は IncidentApi 内でインプロセス結線。ScribeService は独立ホスト化済み）
 
 詳細は [`docs/architecture.md`](docs/architecture.md) と [`docs/evaluation-plan.md`](docs/evaluation-plan.md) を参照してください。
