@@ -1,0 +1,9 @@
+{
+  "finalState": "Resolved",
+  "tier2Invoked": false,
+  "requiresApproval": false,
+  "maxActionAttempts": 1,
+  "expectedActionTypes": ["RestartDemoWorkload"],
+  "verificationOutcome": "passed",
+  "notes": "Rule fast path: the known crash-loop pattern is remediated deterministically at the RuleEvaluation stage. RestartDemoWorkload is low risk, so policy allows automatic execution in the demo environment and no model call, Tier 1 investigation, or human approval is needed."
+}

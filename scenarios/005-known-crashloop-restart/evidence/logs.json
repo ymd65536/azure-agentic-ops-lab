@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "evidenceId": "ev-005-log",
+  "incidentId": "inc-005",
+  "evidenceType": "log",
+  "source": "kubelet",
+  "content": "2026-07-05T14:01:41Z WARN pod=worker-service-6b8d9f state=CrashLoopBackOff reason=OOMKilled message=\"back-off 40s restarting failed container\"",
+  "collectedAt": "2026-07-05T14:02:10+00:00",
+  "attributes": {
+    "namespace": "demo",
+    "pod": "worker-service-6b8d9f"
+  }
+}

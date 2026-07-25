@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0",
+  "incidentId": "inc-005",
+  "title": "worker-service crash loop after out-of-memory kill",
+  "description": "The disposable demo workload worker-service is crash-looping after an out-of-memory kill. The pattern is a known operational signature with an approved low-risk remediation: restart the demo workload.",
+  "source": "kubernetes-events",
+  "severity": "sev3",
+  "affectedServices": ["worker-service"],
+  "detectedAt": "2026-07-05T14:02:00+00:00",
+  "metadata": {
+    "environment": "demo",
+    "scenario": "005-known-crashloop-restart"
+  }
+}
