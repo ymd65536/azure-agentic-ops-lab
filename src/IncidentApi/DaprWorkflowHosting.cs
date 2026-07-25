@@ -259,6 +259,12 @@ public sealed class DaprIncidentWorkflow : Workflow<DaprIncidentWorkflowInput, I
                 nameof(EvaluateRulesActivity),
                 new EvaluateRulesActivityInput(incident, [.. evidence], correlationId));
 
+        public Task<RuleRemediationDecision> PrepareRuleRemediationAsync(
+            Incident incident, RuleEvaluationResult ruleResult, string correlationId, CancellationToken cancellationToken) =>
+            _context.CallActivityAsync<RuleRemediationDecision>(
+                nameof(PrepareRuleRemediationActivity),
+                new PrepareRuleRemediationActivityInput(incident, ruleResult, correlationId));
+
         public Task<InvestigationResult> RunTier1InvestigationAsync(
             Incident incident, IReadOnlyList<IncidentEvidence> evidence, string correlationId, CancellationToken cancellationToken) =>
             _context.CallActivityAsync<InvestigationResult>(
@@ -337,6 +343,12 @@ public sealed record CollectEvidenceActivityInput(Incident Incident, int Attempt
 /// <param name="CorrelationId">The correlation identifier for observability.</param>
 public sealed record EvaluateRulesActivityInput(Incident Incident, IncidentEvidence[] Evidence, string CorrelationId);
 
+/// <summary>The input of <see cref="PrepareRuleRemediationActivity"/>.</summary>
+/// <param name="Incident">The incident under investigation.</param>
+/// <param name="RuleResult">The deterministic rule evaluation result with a proposed action type.</param>
+/// <param name="CorrelationId">The correlation identifier for observability.</param>
+public sealed record PrepareRuleRemediationActivityInput(Incident Incident, RuleEvaluationResult RuleResult, string CorrelationId);
+
 /// <summary>The input of <see cref="Tier1InvestigationActivity"/>.</summary>
 /// <param name="Incident">The incident under investigation.</param>
 /// <param name="Evidence">The evidence collected for the incident.</param>
@@ -395,6 +407,20 @@ public sealed class EvaluateRulesActivity : WorkflowActivity<EvaluateRulesActivi
     /// <inheritdoc />
     public override Task<RuleEvaluationResult> RunAsync(WorkflowActivityContext context, EvaluateRulesActivityInput input) =>
         _activities.EvaluateRulesAsync(input.Incident, input.Evidence, input.CorrelationId, CancellationToken.None);
+}
+
+/// <summary>Prepares the rule fast-path remediation decision through the shared activity implementation.</summary>
+public sealed class PrepareRuleRemediationActivity : WorkflowActivity<PrepareRuleRemediationActivityInput, RuleRemediationDecision>
+{
+    private readonly IIncidentWorkflowActivities _activities;
+
+    /// <summary>Initializes a new activity.</summary>
+    /// <param name="activities">The shared activity implementation.</param>
+    public PrepareRuleRemediationActivity(IIncidentWorkflowActivities activities) => _activities = activities;
+
+    /// <inheritdoc />
+    public override Task<RuleRemediationDecision> RunAsync(WorkflowActivityContext context, PrepareRuleRemediationActivityInput input) =>
+        _activities.PrepareRuleRemediationAsync(input.Incident, input.RuleResult, input.CorrelationId, CancellationToken.None);
 }
 
 /// <summary>Runs the Tier 1 investigation through the shared activity implementation.</summary>

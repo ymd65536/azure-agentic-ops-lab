@@ -2,6 +2,7 @@ using AzureAgenticOps.Contracts;
 using AzureAgenticOps.ExecutionService;
 using AzureAgenticOps.IncidentWorkflow;
 using AzureAgenticOps.RuleEvaluator;
+using AzureAgenticOps.Safety;
 using AzureAgenticOps.Tier1SreAgent;
 using AzureAgenticOps.Tier2SreAgent;
 using AzureAgenticOps.VerificationService;
@@ -18,6 +19,7 @@ public sealed class InProcessWorkflowActivities : IIncidentWorkflowActivities
 {
     private readonly InMemoryEvidenceStore _evidenceStore;
     private readonly IncidentRuleEvaluator _ruleEvaluator;
+    private readonly ActionPolicyEvaluator _policyEvaluator;
     private readonly Tier1SreAgent.Tier1SreAgent _tier1Agent;
     private readonly Tier2SreAgent.Tier2SreAgent _tier2Agent;
     private readonly MockExecutionService _executionService;
@@ -26,6 +28,7 @@ public sealed class InProcessWorkflowActivities : IIncidentWorkflowActivities
     /// <summary>Initializes the in-process activities.</summary>
     /// <param name="evidenceStore">The store holding submitted evidence.</param>
     /// <param name="ruleEvaluator">The deterministic rule evaluator.</param>
+    /// <param name="policyEvaluator">The deterministic action policy evaluator.</param>
     /// <param name="tier1Agent">The Tier 1 SRE agent.</param>
     /// <param name="tier2Agent">The Tier 2 SRE agent.</param>
     /// <param name="executionService">The mock execution service.</param>
@@ -33,6 +36,7 @@ public sealed class InProcessWorkflowActivities : IIncidentWorkflowActivities
     public InProcessWorkflowActivities(
         InMemoryEvidenceStore evidenceStore,
         IncidentRuleEvaluator ruleEvaluator,
+        ActionPolicyEvaluator policyEvaluator,
         Tier1SreAgent.Tier1SreAgent tier1Agent,
         Tier2SreAgent.Tier2SreAgent tier2Agent,
         MockExecutionService executionService,
@@ -40,12 +44,14 @@ public sealed class InProcessWorkflowActivities : IIncidentWorkflowActivities
     {
         ArgumentNullException.ThrowIfNull(evidenceStore);
         ArgumentNullException.ThrowIfNull(ruleEvaluator);
+        ArgumentNullException.ThrowIfNull(policyEvaluator);
         ArgumentNullException.ThrowIfNull(tier1Agent);
         ArgumentNullException.ThrowIfNull(tier2Agent);
         ArgumentNullException.ThrowIfNull(executionService);
         ArgumentNullException.ThrowIfNull(verificationEvaluator);
         _evidenceStore = evidenceStore;
         _ruleEvaluator = ruleEvaluator;
+        _policyEvaluator = policyEvaluator;
         _tier1Agent = tier1Agent;
         _tier2Agent = tier2Agent;
         _executionService = executionService;
@@ -72,6 +78,51 @@ public sealed class InProcessWorkflowActivities : IIncidentWorkflowActivities
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(_ruleEvaluator.Evaluate(incident, evidence));
+    }
+
+    /// <inheritdoc />
+    public Task<RuleRemediationDecision> PrepareRuleRemediationAsync(
+        Incident incident,
+        RuleEvaluationResult ruleResult,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(incident);
+        ArgumentNullException.ThrowIfNull(ruleResult);
+
+        if (ruleResult.ProposedActionType is null)
+        {
+            return Task.FromResult(new RuleRemediationDecision(
+                CanAutoExecute: false,
+                Action: null,
+                "The matched rule does not propose a deterministic action."));
+        }
+
+        RemediationAction candidate = DemoRemediationActionBuilder.Build(
+            incident, ruleResult.ProposedActionType, "rule", ruleResult.MaxActionAttempts);
+        ActionPolicyDecision decision = _policyEvaluator.Evaluate(candidate);
+
+        if (!decision.IsAllowed)
+        {
+            return Task.FromResult(new RuleRemediationDecision(
+                CanAutoExecute: false,
+                Action: null,
+                "Policy rejected the proposed action: " + string.Join(' ', decision.RejectionReasons)));
+        }
+
+        if (decision.RequiresApproval)
+        {
+            return Task.FromResult(new RuleRemediationDecision(
+                CanAutoExecute: false,
+                Action: null,
+                $"Action '{candidate.ActionType}' is {decision.RiskLevel} risk and requires human approval; the rule fast path only auto-executes approval-free actions."));
+        }
+
+        return Task.FromResult(new RuleRemediationDecision(
+            CanAutoExecute: true,
+            candidate,
+            $"Policy allows automatic execution of the {decision.RiskLevel}-risk action '{candidate.ActionType}' in the demo environment."));
     }
 
     /// <inheritdoc />

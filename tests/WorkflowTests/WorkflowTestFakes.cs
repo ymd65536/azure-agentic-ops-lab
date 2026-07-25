@@ -14,6 +14,10 @@ internal sealed class FakeWorkflowActivities : IIncidentWorkflowActivities
 
     public Func<RuleEvaluationResult>? RuleResult { get; set; }
 
+    public Func<RuleRemediationDecision>? RuleRemediationResult { get; set; }
+
+    public int RuleRemediationPreparations { get; private set; }
+
     public Queue<Func<InvestigationResult>> Tier1Results { get; } = new();
 
     public Queue<Func<RemediationPlan>> Tier2Results { get; } = new();
@@ -53,6 +57,17 @@ internal sealed class FakeWorkflowActivities : IIncidentWorkflowActivities
             MaxActionAttempts: 0,
             "No rule matched.");
         return Task.FromResult(result);
+    }
+
+    public Task<RuleRemediationDecision> PrepareRuleRemediationAsync(
+        Incident incident, RuleEvaluationResult ruleResult, string correlationId, CancellationToken cancellationToken)
+    {
+        RuleRemediationPreparations++;
+        RuleRemediationDecision decision = RuleRemediationResult?.Invoke() ?? new RuleRemediationDecision(
+            CanAutoExecute: false,
+            Action: null,
+            "The fake declines automatic rule remediation by default.");
+        return Task.FromResult(decision);
     }
 
     public Task<InvestigationResult> RunTier1InvestigationAsync(

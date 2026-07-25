@@ -244,6 +244,7 @@ if (workflowHosting.UsesDaprEngine)
         options.RegisterWorkflow<DaprIncidentWorkflow>();
         options.RegisterActivity<CollectEvidenceActivity>();
         options.RegisterActivity<EvaluateRulesActivity>();
+        options.RegisterActivity<PrepareRuleRemediationActivity>();
         options.RegisterActivity<Tier1InvestigationActivity>();
         options.RegisterActivity<Tier2PlanningActivity>();
         options.RegisterActivity<ExecuteActionActivity>();

@@ -152,6 +152,63 @@ public sealed class IncidentWorkflowOrchestrator
             ["matchedPattern"] = ruleResult.MatchedPatternName ?? string.Empty,
         }, cancellationToken).ConfigureAwait(false);
 
+        // Rule fast path: a known pattern with an approved deterministic action
+        // resolves the incident without any model call. Policy decides whether
+        // the action may auto-execute; anything else escalates to Tier 1.
+        if (ruleResult.Classification == IncidentClassification.Known &&
+            ruleResult.RecommendedDisposition == AgentDisposition.Resolve &&
+            !ruleResult.EscalateToTier2 &&
+            ruleResult.ProposedActionType is not null)
+        {
+            RuleRemediationDecision? decision = await RunActivityAsync(
+                run, "RuleRemediationPreparation", 1,
+                token => _activities.PrepareRuleRemediationAsync(run.Incident, ruleResult, run.CorrelationId, token),
+                cancellationToken).ConfigureAwait(false);
+
+            await EmitAsync(run, "RuleRemediationPrepared",
+                decision is { CanAutoExecute: true } ? "allowed" : "escalated",
+                new Dictionary<string, string>
+                {
+                    ["actionType"] = ruleResult.ProposedActionType,
+                    ["reason"] = decision?.Reason ?? "The rule remediation preparation activity failed.",
+                }, cancellationToken).ConfigureAwait(false);
+
+            if (decision is { CanAutoExecute: true, Action: not null })
+            {
+                await TransitionAsync(run, IncidentWorkflowState.Executing, cancellationToken).ConfigureAwait(false);
+                ExecutionResult? ruleExecution = await ExecuteWithRetryAsync(
+                    run, decision.Action, approvalGranted: false,
+                    _options.MaxExecutionAttemptsPerAction, cancellationToken).ConfigureAwait(false);
+
+                if (ruleExecution is not null && ruleExecution.Outcome is not ExecutionOutcome.Failed and not ExecutionOutcome.Rejected)
+                {
+                    await TransitionAsync(run, IncidentWorkflowState.Verifying, cancellationToken).ConfigureAwait(false);
+                    VerificationResult? ruleVerification = await RunActivityAsync(
+                        run, "Verification", 1,
+                        token => _activities.VerifyTier1RemediationAsync(run.Incident, decision.Action, run.CorrelationId, token),
+                        cancellationToken).ConfigureAwait(false);
+
+                    await EmitAsync(run, "VerificationCompleted", ruleVerification?.Outcome.ToString() ?? "error", null, cancellationToken).ConfigureAwait(false);
+                    if (ruleVerification is not null && ruleVerification.Outcome == VerificationOutcome.Passed)
+                    {
+                        await ResolveAsync(run,
+                            $"Known pattern '{ruleResult.MatchedPatternName}' was remediated deterministically by rule evaluation and verification passed.",
+                            cancellationToken).ConfigureAwait(false);
+                        return;
+                    }
+
+                    _metrics?.RecordVerificationFailure(ruleVerification?.Outcome.ToString() ?? "error");
+                }
+
+                // Execution or verification did not succeed: escalate to Tier 1
+                // investigation instead of retrying a rule remediation blindly.
+                await EmitAsync(run, "RuleRemediationEscalated", "tier1", new Dictionary<string, string>
+                {
+                    ["reason"] = "The rule fast-path remediation did not produce a verified resolution.",
+                }, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         // Tier 1 investigation loop, bounded by Tier 1 and evidence attempt counts.
         InvestigationResult? tier1Result = null;
         while (true)
@@ -182,6 +239,9 @@ public sealed class IncidentWorkflowOrchestrator
             {
                 ["classification"] = tier1Result.Classification.ToString(),
                 ["confidence"] = tier1Result.Confidence.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
+                ["summary"] = tier1Result.Summary,
+                ["reasoningSummary"] = tier1Result.ReasoningSummary,
+                ["topHypothesis"] = tier1Result.Hypotheses.Count > 0 ? tier1Result.Hypotheses[0].Description : string.Empty,
             }, cancellationToken).ConfigureAwait(false);
 
             if (tier1Result.RecommendedDisposition == AgentDisposition.RequestMoreEvidence)
@@ -277,6 +337,8 @@ public sealed class IncidentWorkflowOrchestrator
                 ["riskLevel"] = plan.RiskLevel.ToString(),
                 ["requiresApproval"] = plan.RequiresApproval ? "true" : "false",
                 ["actionCount"] = plan.Actions.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["summary"] = plan.Summary,
+                ["rootCauseHypothesis"] = plan.RootCauseHypothesis.Description,
             }, cancellationToken).ConfigureAwait(false);
 
             bool approvalGranted = false;

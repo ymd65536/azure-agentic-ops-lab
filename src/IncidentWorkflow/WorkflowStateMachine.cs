@@ -37,7 +37,11 @@ public static class WorkflowStateMachine
             [IncidentWorkflowState.Classifying] =
                 [IncidentWorkflowState.RuleEvaluation, IncidentWorkflowState.Failed],
             [IncidentWorkflowState.RuleEvaluation] =
-                [IncidentWorkflowState.Tier1Investigation, IncidentWorkflowState.Failed],
+                [
+                    IncidentWorkflowState.Tier1Investigation,
+                    IncidentWorkflowState.Executing,
+                    IncidentWorkflowState.Failed,
+                ],
             [IncidentWorkflowState.Tier1Investigation] =
                 [
                     IncidentWorkflowState.Executing,
@@ -63,11 +67,13 @@ public static class WorkflowStateMachine
                 [
                     IncidentWorkflowState.Verifying,
                     IncidentWorkflowState.RollingBack,
+                    IncidentWorkflowState.Tier1Investigation,
                     IncidentWorkflowState.Failed,
                 ],
             [IncidentWorkflowState.Verifying] =
                 [
                     IncidentWorkflowState.Resolved,
+                    IncidentWorkflowState.Tier1Investigation,
                     IncidentWorkflowState.Tier2Investigation,
                     IncidentWorkflowState.RollingBack,
                     IncidentWorkflowState.Failed,

@@ -4,6 +4,20 @@ using AzureAgenticOps.RuleEvaluator;
 namespace AzureAgenticOps.IncidentWorkflow;
 
 /// <summary>
+/// The deterministic decision on whether a matched rule's proposed remediation
+/// may execute automatically on the rule fast path. Policy code, not an agent,
+/// produces this decision: actions that are rejected or require human approval
+/// never auto-execute and the incident escalates to Tier 1 instead.
+/// </summary>
+/// <param name="CanAutoExecute">Whether the action may execute without Tier 1 involvement.</param>
+/// <param name="Action">The validated remediation action, present only when auto-execution is allowed.</param>
+/// <param name="Reason">A deterministic explanation of the decision.</param>
+public sealed record RuleRemediationDecision(
+    bool CanAutoExecute,
+    RemediationAction? Action,
+    string Reason);
+
+/// <summary>
 /// The activities invoked by the incident workflow orchestrator. Each member maps
 /// to a service boundary: in the Dapr-hosted deployment, implementations call the
 /// corresponding service through Dapr service invocation, while tests supply
@@ -33,6 +47,21 @@ public interface IIncidentWorkflowActivities
     Task<RuleEvaluationResult> EvaluateRulesAsync(
         Incident incident,
         IReadOnlyList<IncidentEvidence> evidence,
+        string correlationId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Builds and policy-checks the remediation action proposed by a matched rule,
+    /// deciding whether the rule fast path may execute it automatically.
+    /// </summary>
+    /// <param name="incident">The incident under investigation.</param>
+    /// <param name="ruleResult">The deterministic rule evaluation result with a proposed action type.</param>
+    /// <param name="correlationId">The correlation identifier for observability.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The deterministic auto-execution decision.</returns>
+    Task<RuleRemediationDecision> PrepareRuleRemediationAsync(
+        Incident incident,
+        RuleEvaluationResult ruleResult,
         string correlationId,
         CancellationToken cancellationToken);
 

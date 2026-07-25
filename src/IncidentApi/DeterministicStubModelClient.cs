@@ -89,7 +89,7 @@ public sealed class DeterministicStubModelClient : IAgentModelClient
         RemediationAction? proposedAction = null;
         if (rules.RecommendedDisposition == AgentDisposition.Resolve && rules.ProposedActionType is not null)
         {
-            RemediationAction candidate = BuildAction(incident, rules.ProposedActionType, "tier1", rules.MaxActionAttempts);
+            RemediationAction candidate = DemoRemediationActionBuilder.Build(incident, rules.ProposedActionType, "tier1", rules.MaxActionAttempts);
             ActionPolicyDecision decision = _policyEvaluator.Evaluate(candidate);
 
             // The fast path may only carry actions that policy allows without
@@ -135,7 +135,7 @@ public sealed class DeterministicStubModelClient : IAgentModelClient
         RuleEvaluationResult rules = _ruleEvaluator.Evaluate(incident, evidence);
 
         string actionType = rules.ProposedActionType ?? ActionTypeCatalog.RestartDemoWorkload;
-        RemediationAction action = BuildAction(incident, actionType, "tier2", Math.Max(1, rules.MaxActionAttempts));
+        RemediationAction action = DemoRemediationActionBuilder.Build(incident, actionType, "tier2", Math.Max(1, rules.MaxActionAttempts));
         ActionPolicyDecision decision = _policyEvaluator.Evaluate(action);
 
         AgentHypothesis rootCause = payload.Tier1Handoff?.Hypotheses.Count > 0
@@ -173,40 +173,7 @@ public sealed class DeterministicStubModelClient : IAgentModelClient
     public static string VerificationTarget(Incident incident)
     {
         ArgumentNullException.ThrowIfNull(incident);
-        return $"demo/deployment/{PrimaryService(incident)}";
-    }
-
-    private static RemediationAction BuildAction(Incident incident, string actionType, string origin, int maxAttempts)
-    {
-        string service = PrimaryService(incident);
-        return new RemediationAction(
-            actionType,
-            new ActionTarget("demo", "deployment", service),
-            Parameters: new Dictionary<string, string> { ["service"] = service },
-            IdempotencyKey: SanitizeKey($"{incident.IncidentId}-{origin}-{actionType}"),
-            MaxExecutionCount: Math.Max(1, maxAttempts));
-    }
-
-    private static string PrimaryService(Incident incident) =>
-        incident.AffectedServices.Count > 0 ? incident.AffectedServices[0] : "unknown-service";
-
-    private static string SanitizeKey(string key)
-    {
-        char[] characters = key.ToCharArray();
-        for (int index = 0; index < characters.Length; index++)
-        {
-            char character = characters[index];
-            bool allowed = char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or ':' or '.';
-            if (!allowed)
-            {
-                characters[index] = '-';
-            }
-        }
-
-        string sanitized = new(characters);
-        return sanitized.Length > IdempotencyKeyValidator.MaxLength
-            ? sanitized[..IdempotencyKeyValidator.MaxLength]
-            : sanitized;
+        return $"demo/deployment/{DemoRemediationActionBuilder.PrimaryService(incident)}";
     }
 
     /// <summary>

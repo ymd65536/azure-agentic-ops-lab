@@ -11,6 +11,9 @@ public static class DefaultRuleCatalog
     /// <summary>The pattern name for a known routing configuration error.</summary>
     public const string KnownRoutingConfigurationError = "known-routing-configuration-error";
 
+    /// <summary>The pattern name for a known demo workload crash loop.</summary>
+    public const string KnownDemoWorkloadCrashLoop = "known-demo-workload-crashloop";
+
     /// <summary>The pattern name for an external dependency timeout.</summary>
     public const string ExternalDependencyTimeout = "external-dependency-timeout";
 
@@ -28,6 +31,19 @@ public static class DefaultRuleCatalog
             AgentDisposition.Resolve,
             EscalateToTier2: false,
             ProposedActionType: "RollbackDemoDeployment",
+            MaxActionAttempts: 1),
+
+        new RuleDefinition(
+            KnownDemoWorkloadCrashLoop,
+            "A disposable demo workload is crash-looping after an out-of-memory kill; restarting the workload is the approved low-risk remediation.",
+            [
+                new EvidenceMatchCriterion("log", "CrashLoopBackOff"),
+                new EvidenceMatchCriterion("metric", "restartCount"),
+            ],
+            Confidence: 0.95,
+            AgentDisposition.Resolve,
+            EscalateToTier2: false,
+            ProposedActionType: "RestartDemoWorkload",
             MaxActionAttempts: 1),
 
         new RuleDefinition(
