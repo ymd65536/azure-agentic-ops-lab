@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "evidenceId": "ev-004-metric",
+  "incidentId": "inc-004",
+  "evidenceType": "metric",
+  "source": "metrics-store",
+  "content": "checkout_p95_latency_ms: 220 -> 1850 in intermittent 5-10m bursts over 3h; error_rate stable at 0.2%; gc_pause_p99_ms rose from 40 to 410; db_pool_in_use peaks at 48/50 during bursts; node_cpu_steal 7% on node pool-b during two bursts",
+  "collectedAt": "2026-07-04T09:13:30+00:00",
+  "attributes": {
+    "namespace": "demo",
+    "window": "3h"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "finalState": "AwaitingApproval",
+  "tier2Invoked": true,
+  "requiresApproval": true,
+  "maxActionAttempts": 0,
+  "expectedActionTypes": [],
+  "verificationOutcome": "inconclusive",
+  "notes": "No known pattern matches; the competing hypotheses (GC pause growth, database connection pool exhaustion, noisy-neighbor workload) require Tier 2 analysis. The scenario is designed to be run with AgentRuntime:Mode=Shadow or RemoteModel against a Microsoft Foundry endpoint so remote model reasoning can be evaluated; the deterministic workflow expectations stay identical in every mode, and any proposed remediation must wait for human approval."
+}

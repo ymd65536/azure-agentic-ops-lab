@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0",
+  "incidentId": "inc-004",
+  "title": "Intermittent p95 latency regression on checkout-service",
+  "description": "Monitoring shows intermittent p95 latency spikes on checkout-service without a matching error-rate increase. Candidate causes include GC pause growth, database connection pool exhaustion, and a noisy-neighbor workload on the same node. No known deterministic pattern matches, so the incident is intended to exercise remote model (Microsoft Foundry) reasoning in Shadow or RemoteModel mode.",
+  "source": "metrics-alert",
+  "severity": "sev3",
+  "affectedServices": ["checkout-service", "order-db"],
+  "detectedAt": "2026-07-04T09:12:00+00:00",
+  "metadata": {
+    "environment": "demo",
+    "scenario": "004-unknown-latency-regression",
+    "intendedAgentRuntimeMode": "Shadow"
+  }
+}

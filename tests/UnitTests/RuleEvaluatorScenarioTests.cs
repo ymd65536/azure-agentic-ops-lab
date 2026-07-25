@@ -54,6 +54,22 @@ public class RuleEvaluatorScenarioTests
     }
 
     [Fact]
+    public void Scenario004_IsUnknownAndEscalatesToTier2()
+    {
+        ScenarioLoader.Scenario scenario = ScenarioLoader.Load("004-unknown-latency-regression");
+
+        RuleEvaluationResult result = _evaluator.Evaluate(scenario.Incident, scenario.Evidence);
+
+        Assert.Equal(scenario.ExpectedClassificationResult.Classification, result.Classification);
+        Assert.Equal(IncidentClassification.Unknown, result.Classification);
+        Assert.Null(result.MatchedPatternName);
+        Assert.Equal(AgentDisposition.Escalate, result.RecommendedDisposition);
+        Assert.True(result.EscalateToTier2);
+        Assert.Null(result.ProposedActionType);
+        Assert.Equal(0, result.MaxActionAttempts);
+    }
+
+    [Fact]
     public void UnknownIncident_IsNeverGuessedAsKnown()
     {
         ScenarioLoader.Scenario scenario = ScenarioLoader.Load("002-ambiguous-404-increase");

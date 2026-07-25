@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0",
+  "evidenceId": "ev-004-deploy",
+  "incidentId": "inc-004",
+  "evidenceType": "deployment",
+  "source": "deployment-history",
+  "content": "deployment history checkout-service: last deployment 6 days ago (revision 23, healthy); order-db unchanged for 30 days; batch-report job was rescheduled onto node pool-b 2 days ago",
+  "collectedAt": "2026-07-04T09:13:50+00:00",
+  "attributes": {
+    "namespace": "demo"
+  }
+}

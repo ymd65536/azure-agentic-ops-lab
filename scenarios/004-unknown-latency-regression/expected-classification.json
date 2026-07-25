@@ -1,0 +1,8 @@
+{
+  "classification": "unknown",
+  "matchedPatternName": null,
+  "minimumConfidence": 0.0,
+  "recommendedDisposition": "escalate",
+  "escalateToTier2": true,
+  "proposedActionType": null
+}

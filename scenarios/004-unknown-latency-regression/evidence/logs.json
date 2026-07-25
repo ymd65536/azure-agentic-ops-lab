@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "evidenceId": "ev-004-log",
+  "incidentId": "inc-004",
+  "evidenceType": "log",
+  "source": "checkout-service",
+  "content": "2026-07-04T09:08:41Z WARN slow_request path=/api/checkout duration_ms=2870 gc_pause_ms=412; 2026-07-04T09:09:12Z WARN db_pool wait_ms=950 in_use=48 max=50; 2026-07-04T09:10:03Z INFO request completed normally duration_ms=180",
+  "collectedAt": "2026-07-04T09:13:10+00:00",
+  "attributes": {
+    "namespace": "demo",
+    "pod": "checkout-service-5d8b7f"
+  }
+}
