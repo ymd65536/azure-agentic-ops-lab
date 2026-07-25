@@ -15,23 +15,23 @@
 
 @if (_run is null)
 {
-    <p>No run was found for this incident.</p>
+    <p>このインシデントの実行は見つかりませんでした。</p>
 }
 else
 {
     <section class="card">
         <div class="summary-grid">
-            <div><span class="muted">Title</span><div>@_run.Title</div></div>
-            <div><span class="muted">Severity</span><div>@_run.Severity</div></div>
-            <div><span class="muted">State</span><div><StateBadge State="_run.CurrentState" /></div></div>
-            <div><span class="muted">Workflow instance</span><div><code>@_run.WorkflowInstanceId</code></div></div>
-            <div><span class="muted">Correlation</span><div><code>@_run.CorrelationId</code></div></div>
-            <div><span class="muted">Started</span><div>@(_run.StartedAt?.ToString("u") ?? "-")</div></div>
+            <div><span class="muted">タイトル</span><div>@_run.Title</div></div>
+            <div><span class="muted">重大度</span><div>@_run.Severity</div></div>
+            <div><span class="muted">状態</span><div><StateBadge State="_run.CurrentState" /></div></div>
+            <div><span class="muted">ワークフローインスタンス</span><div><code>@_run.WorkflowInstanceId</code></div></div>
+            <div><span class="muted">相関ID</span><div><code>@_run.CorrelationId</code></div></div>
+            <div><span class="muted">開始日時</span><div>@(_run.StartedAt?.ToString("u") ?? "-")</div></div>
         </div>
     </section>
 
     <section class="card">
-        <h2>Workflow</h2>
+        <h2>ワークフロー</h2>
         <WorkflowPipeline CurrentState="_run.CurrentState" History="_run.Result?.StateHistory ?? _visitedStates" />
         @if (_run.Result is not null)
         {
@@ -42,24 +42,24 @@ else
     @if (_run.CurrentState == IncidentWorkflowState.AwaitingApproval)
     {
         <section class="card card-attention">
-            <h2>Human approval required</h2>
+            <h2>人間による承認が必要です</h2>
             <p>
-                The workflow is waiting for an external approval event. Policy, not the agent,
-                decided that this plan cannot be executed without a human decision.
+                ワークフローは外部からの承認イベントを待機しています。この計画を人間の判断なしに
+                実行できないと決定したのは、エージェントではなくポリシーです。
             </p>
             <label>
-                Approver
+                承認者
                 <input type="text" @bind="_approver" />
             </label>
             <label>
-                Reason
+                理由
                 <input type="text" @bind="_reason" />
             </label>
             <div class="button-row">
                 <button class="button button-approve" disabled="@_decisionInFlight"
-                        @onclick="() => SubmitDecisionAsync(ApprovalOutcome.Approved)">Approve</button>
+                        @onclick="() => SubmitDecisionAsync(ApprovalOutcome.Approved)">承認</button>
                 <button class="button button-reject" disabled="@_decisionInFlight"
-                        @onclick="() => SubmitDecisionAsync(ApprovalOutcome.Rejected)">Reject</button>
+                        @onclick="() => SubmitDecisionAsync(ApprovalOutcome.Rejected)">却下</button>
             </div>
             @if (_decisionMessage is not null)
             {
@@ -69,10 +69,10 @@ else
     }
 
     <section class="card">
-        <h2>Lifecycle timeline</h2>
+        <h2>ライフサイクルタイムライン</h2>
         @if (_timeline.Count == 0)
         {
-            <p class="muted">No lifecycle events were recorded yet.</p>
+            <p class="muted">まだライフサイクルイベントは記録されていません。</p>
         }
         else
         {
@@ -86,7 +86,7 @@ else
                             <span class="muted">@lifecycleEvent.OccurredAt.ToString("HH:mm:ss")</span>
                             @if (lifecycleEvent.AttemptNumber > 1)
                             {
-                                <span class="muted">attempt @lifecycleEvent.AttemptNumber</span>
+                                <span class="muted">試行 @lifecycleEvent.AttemptNumber 回目</span>
                             }
                             @if (!string.IsNullOrWhiteSpace(lifecycleEvent.Outcome))
                             {
@@ -167,11 +167,11 @@ else
         }
         catch (HttpRequestException exception)
         {
-            _error = $"The IncidentApi is not reachable: {exception.Message}";
+            _error = $"IncidentApi に接続できません: {exception.Message}";
         }
         catch (TaskCanceledException)
         {
-            _error = "The IncidentApi did not respond within the configured timeout.";
+            _error = "IncidentApi が設定されたタイムアウト内に応答しませんでした。";
         }
     }
 
@@ -191,13 +191,13 @@ else
             bool accepted = await ApiClient.SubmitApprovalAsync(
                 IncidentId, outcome, _approver, _reason, CancellationToken.None);
             _decisionMessage = accepted
-                ? $"The decision '{outcome}' was delivered to the workflow."
-                : "The workflow already received an approval decision.";
+                ? $"決定 '{outcome}' をワークフローへ送達しました。"
+                : "ワークフローは既に承認決定を受信済みです。";
             await LoadAsync(CancellationToken.None);
         }
         catch (HttpRequestException exception)
         {
-            _decisionMessage = $"Delivering the decision failed: {exception.Message}";
+            _decisionMessage = $"決定の送達に失敗しました: {exception.Message}";
         }
         finally
         {

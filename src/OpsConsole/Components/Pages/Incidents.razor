@@ -5,12 +5,12 @@
 @inject Microsoft.Extensions.Options.IOptions<OpsConsoleOptions> Options
 @inject NavigationManager Navigation
 
-<PageTitle>Incidents - Agentic Ops Console</PageTitle>
+<PageTitle>インシデント - Agentic Ops Console</PageTitle>
 
-<h1>Incident runs</h1>
+<h1>インシデント実行一覧</h1>
 <p class="lede">
-    Every incident submitted to the IncidentApi with the workflow state observed by the
-    orchestrator. The view refreshes every @Options.Value.RefreshIntervalSeconds seconds.
+    IncidentApi に送信されたすべてのインシデントと、オーケストレーターが観測したワークフロー状態を表示します。
+    この画面は @Options.Value.RefreshIntervalSeconds 秒ごとに自動更新されます。
 </p>
 
 @if (_error is not null)
@@ -20,12 +20,12 @@
 
 @if (_runs is null)
 {
-    <p>Loading...</p>
+    <p>読み込み中...</p>
 }
 else if (_runs.Count == 0)
 {
     <p>
-        No incident runs yet. Start one from the <a href="/scenarios">scenarios</a> page.
+        まだインシデント実行はありません。<a href="/scenarios">シナリオ</a>ページから開始してください。
     </p>
 }
 else
@@ -33,10 +33,10 @@ else
     <table class="data-table">
         <thead>
             <tr>
-                <th>Incident</th>
-                <th>Severity</th>
-                <th>State</th>
-                <th>Started</th>
+                <th>インシデント</th>
+                <th>重大度</th>
+                <th>状態</th>
+                <th>開始日時</th>
                 <th></th>
             </tr>
         </thead>
@@ -54,7 +54,7 @@ else
                     <td>
                         @if (run.CurrentState == IncidentWorkflowState.AwaitingApproval)
                         {
-                            <span class="attention">Approval required</span>
+                            <span class="attention">承認が必要です</span>
                         }
                     </td>
                 </tr>
@@ -104,11 +104,11 @@ else
         }
         catch (HttpRequestException exception)
         {
-            _error = $"The IncidentApi is not reachable: {exception.Message}";
+            _error = $"IncidentApi に接続できません: {exception.Message}";
         }
         catch (TaskCanceledException)
         {
-            _error = "The IncidentApi did not respond within the configured timeout.";
+            _error = "IncidentApi が設定されたタイムアウト内に応答しませんでした。";
         }
     }
 
