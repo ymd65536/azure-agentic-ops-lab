@@ -80,15 +80,11 @@ public interface IChatCompletionTransport
 /// it surfaces as a bounded model failure.
 /// </summary>
 /// <remarks>
-/// TODO: Replace with a Microsoft Foundry transport once the SDK and API surface
-/// for the target model endpoints are confirmed. The implementation must:
-/// build the client from <see cref="RemoteModelOptions.Endpoint"/> and
-/// <see cref="RemoteModelOptions.ModelId"/>, authenticate with
-/// <c>DefaultAzureCredential</c> (or resolve
-/// <see cref="RemoteModelOptions.ApiKeySecretName"/> through the secret store
-/// abstraction), request JSON-constrained structured output, propagate the
-/// <see cref="CancellationToken"/>, and surface retryable provider errors as
-/// <see cref="TransientTransportException"/>. It must never log credentials.
+/// The production implementation is <see cref="FoundryChatCompletionTransport"/>,
+/// which the host composes when <see cref="RemoteModelOptions.Endpoint"/> and
+/// <see cref="RemoteModelOptions.ModelId"/> are configured. This placeholder
+/// remains the default so that hosts without remote model configuration never
+/// attempt outbound calls.
 /// </remarks>
 public sealed class UnconfiguredChatCompletionTransport : IChatCompletionTransport
 {

@@ -64,6 +64,13 @@ public sealed class AgentRuntimeOptions
                 return false;
             }
 
+            if (string.Equals(RemoteModel.AuthMode, RemoteModelOptions.ApiKeySecretReferenceAuthMode, StringComparison.OrdinalIgnoreCase) &&
+                string.IsNullOrWhiteSpace(RemoteModel.ApiKeySecretName))
+            {
+                error = "AgentRuntime:RemoteModel:ApiKeySecretName is required when AuthMode is 'ApiKeySecretReference'.";
+                return false;
+            }
+
             if (RemoteModel.TimeoutSeconds <= 0)
             {
                 error = "AgentRuntime:RemoteModel:TimeoutSeconds must be positive.";
@@ -105,6 +112,19 @@ public sealed class RemoteModelOptions
 
     /// <summary>Gets or sets the model deployment or model identifier to invoke.</summary>
     public string ModelId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the API version appended as an <c>api-version</c> query
+    /// parameter, used by Azure OpenAI style endpoints. Optional.
+    /// </summary>
+    public string? ApiVersion { get; set; }
+
+    /// <summary>
+    /// Gets or sets the token scope requested when authenticating with
+    /// <see cref="DefaultAzureCredentialAuthMode"/>. Defaults to the Cognitive
+    /// Services scope used by Microsoft Foundry model endpoints.
+    /// </summary>
+    public string TokenScope { get; set; } = "https://cognitiveservices.azure.com/.default";
 
     /// <summary>Gets or sets the authentication mode. Defaults to DefaultAzureCredential.</summary>
     public string AuthMode { get; set; } = DefaultAzureCredentialAuthMode;

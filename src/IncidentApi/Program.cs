@@ -9,7 +9,6 @@ using AzureAgenticOps.RuleEvaluator;
 using AzureAgenticOps.Safety;
 using AzureAgenticOps.Tier1SreAgent;
 using AzureAgenticOps.VerificationService;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
@@ -103,10 +102,38 @@ builder.Services.AddSingleton(provider => new MockExecutionService(
 //   RemoteModel — the remote model's structured output is used by the workflow.
 //   Shadow — the deterministic result is adopted while the same input is sent to
 //   the remote model and the structured comparison is recorded for evaluation.
-// The remote transport defaults to an unconfigured placeholder that fails safely;
-// TODO: register the Microsoft Foundry IChatCompletionTransport once the SDK and
-// endpoint API surface are confirmed (see ChatCompletionTransport.cs).
-builder.Services.TryAddSingleton<IChatCompletionTransport, UnconfiguredChatCompletionTransport>();
+// The remote transport is composed only when a remote endpoint is configured;
+// otherwise the placeholder keeps failing safely and the default Deterministic
+// mode performs no external communication at all.
+builder.Services.AddHttpClient(nameof(FoundryChatCompletionTransport));
+builder.Services.AddSingleton<IChatCompletionTransport>(provider =>
+{
+    AgentRuntimeOptions options = provider.GetRequiredService<IOptions<AgentRuntimeOptions>>().Value;
+    RemoteModelOptions remote = options.RemoteModel;
+    if (string.IsNullOrWhiteSpace(remote.Endpoint) || string.IsNullOrWhiteSpace(remote.ModelId))
+    {
+        return new UnconfiguredChatCompletionTransport();
+    }
+
+    IHttpClientFactory httpClientFactory = provider.GetRequiredService<IHttpClientFactory>();
+    HttpClient httpClient = httpClientFactory.CreateClient(nameof(FoundryChatCompletionTransport));
+
+    IChatCompletionAuthenticator authenticator;
+    if (string.Equals(remote.AuthMode, RemoteModelOptions.ApiKeySecretReferenceAuthMode, StringComparison.OrdinalIgnoreCase))
+    {
+        DaprPublisherOptions daprOptions = provider.GetRequiredService<IOptions<DaprPublisherOptions>>().Value;
+        authenticator = new ApiKeyChatCompletionAuthenticator(
+            new DaprSecretStoreSecretResolver(httpClient, daprOptions.HttpPort),
+            remote.ApiKeySecretName!);
+    }
+    else
+    {
+        authenticator = new BearerTokenChatCompletionAuthenticator(
+            new AzureIdentityAccessTokenProvider(remote.TokenScope));
+    }
+
+    return new FoundryChatCompletionTransport(httpClient, remote, authenticator);
+});
 builder.Services.AddSingleton(provider => new DeterministicStubModelClient(
     provider.GetRequiredService<IncidentRuleEvaluator>(),
     provider.GetRequiredService<ActionPolicyEvaluator>(),
