@@ -70,6 +70,23 @@ public class RuleEvaluatorScenarioTests
     }
 
     [Fact]
+    public void Scenario005_MatchesKnownCrashLoopAndProposesALowRiskRestart()
+    {
+        ScenarioLoader.Scenario scenario = ScenarioLoader.Load("005-known-crashloop-restart");
+
+        RuleEvaluationResult result = _evaluator.Evaluate(scenario.Incident, scenario.Evidence);
+
+        Assert.Equal(scenario.ExpectedClassificationResult.Classification, result.Classification);
+        Assert.Equal(scenario.ExpectedClassificationResult.MatchedPatternName, result.MatchedPatternName);
+        Assert.True(result.Confidence >= scenario.ExpectedClassificationResult.MinimumConfidence);
+        Assert.Equal(scenario.ExpectedClassificationResult.RecommendedDisposition, result.RecommendedDisposition);
+        Assert.False(result.EscalateToTier2);
+        Assert.Equal(scenario.ExpectedClassificationResult.ProposedActionType, result.ProposedActionType);
+        Assert.Equal(scenario.ExpectedFinalResult.MaxActionAttempts, result.MaxActionAttempts);
+        Assert.NotEmpty(result.MatchedEvidenceIds);
+    }
+
+    [Fact]
     public void UnknownIncident_IsNeverGuessedAsKnown()
     {
         ScenarioLoader.Scenario scenario = ScenarioLoader.Load("002-ambiguous-404-increase");

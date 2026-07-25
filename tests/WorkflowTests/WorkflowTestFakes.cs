@@ -154,6 +154,19 @@ internal static class WorkflowTestData
         new Dictionary<string, string>(),
         key);
 
+    public static RuleEvaluationResult KnownRuleResult(
+        string patternName = "known-demo-workload-crashloop",
+        string? proposedActionType = "RestartDemoWorkload") => new(
+        IncidentClassification.Known,
+        patternName,
+        ["ev-001"],
+        Confidence: 0.95,
+        AgentDisposition.Resolve,
+        EscalateToTier2: false,
+        proposedActionType,
+        MaxActionAttempts: 1,
+        "A known pattern matched.");
+
     public static InvestigationResult Tier1Result(
         AgentDisposition disposition,
         double confidence = 0.9,

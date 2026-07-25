@@ -28,7 +28,7 @@ Detect → Classify → Investigate → Escalate → Plan → Approve → Execut
 * OpsConsole（`src/OpsConsole`）— .NET Blazor（Interactive Server）による運用コンソール。ワークフローの状態遷移・ライフサイクルタイムライン・人間の承認・シナリオ実行を視覚的に確認できる。IncidentApi を読み取り、人間の判断を中継するだけで、復旧アクションは実行しない
 * ローカル Kubernetes デプロイ資産 — IncidentApi / OpsConsole の `Dockerfile`、`deploy/local/` の Kubernetes マニフェスト（namespace `agentic-ops`、Dapr コンポーネント `incident-pubsub` / `incident-state` / `secret-store`、開発用 Redis）、`scripts/` の運用スクリプト一式
 * プロンプト資産（`prompts/`）と Insights ナレッジフィクスチャ（`knowledge/`）
-* 固定シナリオ（`scenarios/`）— Scenario 001〜004
+* 固定シナリオ（`scenarios/`）— Scenario 001〜005
 * テスト（`tests/UnitTests`、`tests/ContractTests`、`tests/WorkflowTests`、`tests/IntegrationTests`）
 
 ローカルの動作確認に Kubernetes・Azure リソース・実 LLM API は不要です（デフォルト構成では外部通信は発生しません）。Dapr Pub/Sub 発行（`Dapr:Enabled`）、Dapr Workflow ホスティング（`Workflow:Engine=Dapr`）、実 LLM 接続（`AgentRuntime:Mode`）、AKS デプロイ（[`docs/azure-deployment.md`](docs/azure-deployment.md)）はすべてオプトインです。
@@ -82,6 +82,7 @@ scripts/run-scenario.sh 001-known-routing-error
 scripts/run-scenario.sh 002-ambiguous-404-increase
 scripts/run-scenario.sh 003-dependency-timeout
 scripts/run-scenario.sh 004-unknown-latency-regression
+scripts/run-scenario.sh 005-known-crashloop-restart
 
 # 5. 状態とライフサイクルタイムラインを確認（<incident-id> は手順4の出力に表示）
 curl -s localhost:8080/incidents | jq -r '.[] | "\(.incidentId) \(.currentState)"'
@@ -105,6 +106,7 @@ API プロセスを停止すると、インメモリのワークフロー状態�
 | `scripts/run-scenario.sh 002-ambiguous-404-increase` | 未知パターン → Tier 2 エスカレーション → 計画 → 実行 → 検証 | `resolved` |
 | `scripts/run-scenario.sh 003-dependency-timeout --verification-value degraded` | 復旧後も検証が失敗し、無限リトライせず有界で停止 | `failed` |
 | `scripts/run-scenario.sh 004-unknown-latency-regression` | 未知パターン → Tier 2 エスカレーション → 承認 → 実行 → 検証（Foundry の `Shadow` / `RemoteModel` モード評価向け） | `resolved` |
+| `scripts/run-scenario.sh 005-known-crashloop-restart` | 既知パターン一致 → ルール高速パスで自動実行 → 検証成功（モデル呼び出し・Tier 1 / Tier 2・承認なし） | `resolved` |
 
 各シナリオの設計上の期待値は `scenarios/<name>/expected-result.json` に固定されており、`dotnet test`（ワークフロー／統合テスト）で検証されます。
 承認要否は `ActionPolicyEvaluator` のリスク判定が決定するため、Tier 2 が低リスクアクションのみを提案した場合は承認待ちにならずに実行へ進みます。
@@ -297,6 +299,7 @@ Dapr コンポーネントの論理名（`incident-pubsub` / `incident-state`）
 | [002-ambiguous-404-increase](scenarios/002-ambiguous-404-increase/) | 原因が曖昧な404増加 | unknown判定、Tier 2エスカレーション、人間の承認が必要 |
 | [003-dependency-timeout](scenarios/003-dependency-timeout/) | 外部依存タイムアウト | 再起動の無限ループを回避、エスカレーションまたは安全な停止 |
 | [004-unknown-latency-regression](scenarios/004-unknown-latency-regression/) | 原因が競合する断続的レイテンシ悪化（Foundry リモートモデル評価用） | unknown判定、Tier 2エスカレーション、`Shadow`/`RemoteModel` モードで Foundry 推論を評価、人間の承認が必要 |
+| [005-known-crashloop-restart](scenarios/005-known-crashloop-restart/) | 既知のクラッシュループ（デモワークロードのOOM再起動） | ルール評価の高速パスで解決、モデル呼び出し・Tier 1 / Tier 2・承認なし、失敗時は Tier 1 へエスカレーション |
 
 ## 主要な設計判断
 

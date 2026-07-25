@@ -150,6 +150,28 @@ public sealed class IncidentApiTests : IClassFixture<WebApplicationFactory<Progr
     }
 
     [Fact]
+    public async Task Scenario005_KnownCrashLoop_ResolvesOnTheRuleFastPath()
+    {
+        using HttpClient client = _factory.CreateClient();
+        Incident incident = LoadScenarioIncident("005-known-crashloop-restart", "int-005-fastpath");
+        IReadOnlyList<IncidentEvidence> evidence = LoadScenarioEvidence("005-known-crashloop-restart", incident.IncidentId);
+
+        using HttpResponseMessage verificationSetup = await PostJsonAsync(
+            client, "/demo/verification",
+            new VerificationOverrideSubmission($"demo/deployment/{incident.AffectedServices[0]}", "healthy"));
+        Assert.Equal(HttpStatusCode.NoContent, verificationSetup.StatusCode);
+
+        using HttpResponseMessage accepted = await PostJsonAsync(client, "/incidents", new IncidentSubmission(incident, evidence));
+        Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
+
+        IncidentRunStatus final = await WaitForCompletionAsync(client, incident.IncidentId);
+        Assert.Equal(IncidentWorkflowState.Resolved, final.Result!.FinalState);
+        Assert.DoesNotContain(IncidentWorkflowState.Tier1Investigation, final.Result.StateHistory);
+        Assert.DoesNotContain(IncidentWorkflowState.Tier2Investigation, final.Result.StateHistory);
+        Assert.DoesNotContain(IncidentWorkflowState.AwaitingApproval, final.Result.StateHistory);
+    }
+
+    [Fact]
     public async Task DuplicateSubmission_IsRejectedWithConflict()
     {
         using HttpClient client = _factory.CreateClient();

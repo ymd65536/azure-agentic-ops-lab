@@ -42,6 +42,97 @@ public sealed class IncidentWorkflowOrchestratorTests
     }
 
     [Fact]
+    public async Task RuleFastPath_ResolvesWithoutAnyModelCall()
+    {
+        RemediationAction ruleAction = WorkflowTestData.Action("restart_demo_workload", "inc-001-rule-1");
+        _activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
+        _activities.RuleResult = () => WorkflowTestData.KnownRuleResult();
+        _activities.RuleRemediationResult = () => new RuleRemediationDecision(
+            CanAutoExecute: true, ruleAction, "Policy allows automatic execution of the low-risk action.");
+        _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
+
+        IncidentWorkflowResult result = await RunAsync();
+
+        Assert.Equal(IncidentWorkflowState.Resolved, result.FinalState);
+        Assert.Equal(0, _activities.Tier1Invocations);
+        Assert.Equal(0, _activities.Tier2Invocations);
+        Assert.Equal(1, _activities.RuleRemediationPreparations);
+        Assert.False(_activities.ExecutedActions.Single().ApprovalGranted);
+        Assert.Equal(
+            [
+                IncidentWorkflowState.Received,
+                IncidentWorkflowState.Classifying,
+                IncidentWorkflowState.RuleEvaluation,
+                IncidentWorkflowState.Executing,
+                IncidentWorkflowState.Verifying,
+                IncidentWorkflowState.Resolved,
+            ],
+            result.StateHistory);
+    }
+
+    [Fact]
+    public async Task RuleFastPath_WhenPolicyDeclinesAutoExecution_InvestigatesWithTier1()
+    {
+        _activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
+        _activities.RuleResult = () => WorkflowTestData.KnownRuleResult();
+        _activities.RuleRemediationResult = () => new RuleRemediationDecision(
+            CanAutoExecute: false, Action: null, "The action requires human approval.");
+        _activities.Tier1Results.Enqueue(() =>
+            WorkflowTestData.Tier1Result(AgentDisposition.Resolve, 0.95, WorkflowTestData.Action()));
+        _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
+
+        IncidentWorkflowResult result = await RunAsync();
+
+        Assert.Equal(IncidentWorkflowState.Resolved, result.FinalState);
+        Assert.Equal(1, _activities.RuleRemediationPreparations);
+        Assert.Equal(1, _activities.Tier1Invocations);
+        Assert.Contains(IncidentWorkflowState.Tier1Investigation, result.StateHistory);
+    }
+
+    [Fact]
+    public async Task RuleFastPath_WhenVerificationFails_EscalatesToTier1WithoutRetryingTheRuleAction()
+    {
+        RemediationAction ruleAction = WorkflowTestData.Action("restart_demo_workload", "inc-001-rule-1");
+        _activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
+        _activities.RuleResult = () => WorkflowTestData.KnownRuleResult();
+        _activities.RuleRemediationResult = () => new RuleRemediationDecision(
+            CanAutoExecute: true, ruleAction, "Policy allows automatic execution of the low-risk action.");
+        _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Failed));
+        _activities.Tier1Results.Enqueue(() => WorkflowTestData.Tier1Result(AgentDisposition.Escalate, 0.4));
+        _activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: false));
+        _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
+
+        IncidentWorkflowResult result = await RunAsync();
+
+        Assert.Equal(IncidentWorkflowState.Resolved, result.FinalState);
+        Assert.Equal(1, _activities.RuleRemediationPreparations);
+        Assert.Equal(1, _activities.Tier1Invocations);
+        Assert.Equal(1, _activities.Tier2Invocations);
+        Assert.Single(_activities.ExecutedActions, executed => executed.Action.IdempotencyKey == ruleAction.IdempotencyKey);
+    }
+
+    [Fact]
+    public async Task RuleFastPath_IsSkippedWhenTheRuleEscalates()
+    {
+        _activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
+        _activities.RuleResult = () => WorkflowTestData.KnownRuleResult() with
+        {
+            RecommendedDisposition = AgentDisposition.Escalate,
+            EscalateToTier2 = true,
+            ProposedActionType = null,
+        };
+        _activities.Tier1Results.Enqueue(() => WorkflowTestData.Tier1Result(AgentDisposition.Escalate, 0.4));
+        _activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: false));
+        _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
+
+        IncidentWorkflowResult result = await RunAsync();
+
+        Assert.Equal(IncidentWorkflowState.Resolved, result.FinalState);
+        Assert.Equal(0, _activities.RuleRemediationPreparations);
+        Assert.Equal(1, _activities.Tier1Invocations);
+    }
+
+    [Fact]
     public async Task Tier1Escalation_InvokesTier2_AndApprovedPlanResolves()
     {
         _activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
