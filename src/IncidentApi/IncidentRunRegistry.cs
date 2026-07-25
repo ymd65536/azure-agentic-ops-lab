@@ -54,31 +54,31 @@ public sealed class IncidentRunRegistry
     }
 
     private readonly ConcurrentDictionary<string, RunEntry> _runs = new(StringComparer.Ordinal);
-    private readonly IncidentWorkflowOrchestrator _orchestrator;
+    private readonly IIncidentWorkflowRunner _runner;
     private readonly WorkflowStateObserver _stateObserver;
     private readonly ILogger<IncidentRunRegistry> _logger;
     private readonly IHostApplicationLifetime _lifetime;
     private readonly TimeProvider _timeProvider;
 
     /// <summary>Initializes a new registry.</summary>
-    /// <param name="orchestrator">The incident workflow orchestrator.</param>
+    /// <param name="runner">The workflow runner for the configured hosting engine.</param>
     /// <param name="stateObserver">The observer tracking in-flight workflow states.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="lifetime">The host lifetime used to stop runs on shutdown.</param>
     /// <param name="timeProvider">The time provider used to stamp run start times.</param>
     public IncidentRunRegistry(
-        IncidentWorkflowOrchestrator orchestrator,
+        IIncidentWorkflowRunner runner,
         WorkflowStateObserver stateObserver,
         ILogger<IncidentRunRegistry> logger,
         IHostApplicationLifetime lifetime,
         TimeProvider timeProvider)
     {
-        ArgumentNullException.ThrowIfNull(orchestrator);
+        ArgumentNullException.ThrowIfNull(runner);
         ArgumentNullException.ThrowIfNull(stateObserver);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(lifetime);
         ArgumentNullException.ThrowIfNull(timeProvider);
-        _orchestrator = orchestrator;
+        _runner = runner;
         _stateObserver = stateObserver;
         _logger = logger;
         _lifetime = lifetime;
@@ -116,7 +116,7 @@ public sealed class IncidentRunRegistry
             {
                 try
                 {
-                    IncidentWorkflowResult result = await _orchestrator
+                    IncidentWorkflowResult result = await _runner
                         .RunAsync(incident, entry.WorkflowInstanceId, entry.CorrelationId, stoppingToken)
                         .ConfigureAwait(false);
                     Volatile.Write(ref entry.Result, result);

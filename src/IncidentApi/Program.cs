@@ -9,6 +9,7 @@ using AzureAgenticOps.RuleEvaluator;
 using AzureAgenticOps.Safety;
 using AzureAgenticOps.Tier1SreAgent;
 using AzureAgenticOps.VerificationService;
+using Dapr.Workflow;
 using Microsoft.Extensions.Options;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
@@ -39,6 +40,11 @@ builder.Services.AddOptions<DaprPublisherOptions>()
         }
     })
     .Validate(options => options.HttpPort is > 0 and < 65536, "Dapr HttpPort must be a valid port.")
+    .ValidateOnStart();
+
+builder.Services.AddOptions<WorkflowHostingOptions>()
+    .Bind(builder.Configuration.GetSection(WorkflowHostingOptions.SectionName))
+    .Validate(options => options.Validate(out _), "Workflow:Engine must be 'InProcess' or 'Dapr'.")
     .ValidateOnStart();
 
 builder.Services.AddOptions<IncidentTimelineOptions>()
@@ -209,21 +215,52 @@ builder.Services.AddSingleton<ILifecycleEventPublisher>(provider => new Composit
     provider.GetRequiredService<IncidentTimelineRecorder>(),
     provider.GetRequiredService<DaprLifecycleEventPublisher>(),
 ]));
+builder.Services.AddSingleton(provider => new IncidentWorkflowOrchestrator(
+    provider.GetRequiredService<IIncidentWorkflowActivities>(),
+    provider.GetRequiredService<IApprovalGate>(),
+    provider.GetRequiredService<ILifecycleEventPublisher>(),
+    provider.GetRequiredService<IncidentWorkflowOptions>(),
+    provider.GetRequiredService<TimeProvider>(),
+    provider.GetRequiredService<AzureAgenticOps.Observability.AgenticOpsMetrics>()));
+builder.Services.AddSingleton<IncidentRunRegistry>();
+
+// Workflow hosting engine. The default in-process engine keeps local runs free
+// of external dependencies; the Dapr engine hosts the same deterministic
+// orchestrator as a durable Dapr Workflow through the sidecar.
 builder.Services.AddSingleton(provider =>
 {
     IncidentApiOptions options = provider.GetRequiredService<IOptions<IncidentApiOptions>>().Value;
-    return new IncidentWorkflowOrchestrator(
-        provider.GetRequiredService<IIncidentWorkflowActivities>(),
-        provider.GetRequiredService<IApprovalGate>(),
-        provider.GetRequiredService<ILifecycleEventPublisher>(),
-        IncidentWorkflowOptions.Default with
-        {
-            ApprovalTimeout = TimeSpan.FromSeconds(options.ApprovalTimeoutSeconds),
-        },
-        provider.GetRequiredService<TimeProvider>(),
-        provider.GetRequiredService<AzureAgenticOps.Observability.AgenticOpsMetrics>());
+    return IncidentWorkflowOptions.Default with
+    {
+        ApprovalTimeout = TimeSpan.FromSeconds(options.ApprovalTimeoutSeconds),
+    };
 });
-builder.Services.AddSingleton<IncidentRunRegistry>();
+var workflowHosting = new WorkflowHostingOptions();
+builder.Configuration.GetSection(WorkflowHostingOptions.SectionName).Bind(workflowHosting);
+if (workflowHosting.UsesDaprEngine)
+{
+    builder.Services.AddDaprWorkflow(options =>
+    {
+        options.RegisterWorkflow<DaprIncidentWorkflow>();
+        options.RegisterActivity<CollectEvidenceActivity>();
+        options.RegisterActivity<EvaluateRulesActivity>();
+        options.RegisterActivity<Tier1InvestigationActivity>();
+        options.RegisterActivity<Tier2PlanningActivity>();
+        options.RegisterActivity<ExecuteActionActivity>();
+        options.RegisterActivity<VerifyTier1RemediationActivity>();
+        options.RegisterActivity<VerifyPlanActivity>();
+        options.RegisterActivity<PublishLifecycleEventActivity>();
+    });
+    builder.Services.AddSingleton<IIncidentWorkflowRunner>(provider => new DaprIncidentWorkflowRunner(
+        provider.GetRequiredService<Dapr.Workflow.DaprWorkflowClient>(),
+        provider.GetRequiredService<IncidentWorkflowOptions>()));
+}
+else
+{
+    builder.Services.AddSingleton<IIncidentWorkflowRunner>(provider => new InProcessIncidentWorkflowRunner(
+        provider.GetRequiredService<IncidentWorkflowOrchestrator>(),
+        provider.GetRequiredService<ExternalEventApprovalGate>()));
+}
 
 WebApplication app = builder.Build();
 
@@ -266,9 +303,10 @@ app.MapGet("/incidents/{incidentId}", (string incidentId, IncidentRunRegistry re
     return status is null ? Results.NotFound() : Results.Ok(status);
 }).WithName("GetIncidentStatus");
 
-app.MapPost("/incidents/{incidentId}/approval", (string incidentId, ApprovalSubmission submission, IncidentRunRegistry registry, ExternalEventApprovalGate approvalGate) =>
+app.MapPost("/incidents/{incidentId}/approval", async (string incidentId, ApprovalSubmission submission, IncidentRunRegistry registry, IIncidentWorkflowRunner runner, CancellationToken cancellationToken) =>
 {
-    if (registry.GetStatus(incidentId) is null)
+    IncidentRunStatus? status = registry.GetStatus(incidentId);
+    if (status is null)
     {
         return Results.NotFound();
     }
@@ -278,9 +316,11 @@ app.MapPost("/incidents/{incidentId}/approval", (string incidentId, ApprovalSubm
         return Results.BadRequest(new { error = "The approval outcome must be 'approved' or 'rejected'." });
     }
 
-    bool delivered = approvalGate.TryDeliver(
+    bool delivered = await runner.TryDeliverApprovalAsync(
         incidentId,
-        new ApprovalDecision(submission.Outcome, submission.Approver, submission.Reason));
+        status.WorkflowInstanceId,
+        new ApprovalDecision(submission.Outcome, submission.Approver, submission.Reason),
+        cancellationToken);
     return delivered
         ? Results.Accepted($"/incidents/{incidentId}", new { incidentId, outcome = submission.Outcome })
         : Results.Conflict(new { error = $"An approval decision for incident '{incidentId}' was already delivered." });
