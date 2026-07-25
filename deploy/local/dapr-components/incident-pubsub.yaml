@@ -14,3 +14,4 @@ spec:
       value: redis.agentic-ops.svc.cluster.local:6379
 scopes:
   - incident-api
+  - scribe-service

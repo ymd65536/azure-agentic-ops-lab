@@ -15,10 +15,12 @@ for f in "${DEPLOY_DIR}/dapr-components"/*.yaml; do
 done
 kubectl apply -f "${DEPLOY_DIR}/incident-api.yaml"
 kubectl apply -f "${DEPLOY_DIR}/ops-console.yaml"
+kubectl apply -f "${DEPLOY_DIR}/scribe-service.yaml"
 
 kubectl rollout status deployment/redis --namespace agentic-ops --timeout 120s
 kubectl rollout status deployment/incident-api --namespace agentic-ops --timeout 180s
 kubectl rollout status deployment/ops-console --namespace agentic-ops --timeout 180s
+kubectl rollout status deployment/scribe-service --namespace agentic-ops --timeout 180s
 
 echo "Deployment complete."
 echo "Forward the API locally with:"
@@ -26,3 +28,6 @@ echo "  kubectl port-forward --namespace agentic-ops service/incident-api 8080:8
 echo "Open the operations console with:"
 echo "  kubectl port-forward --namespace agentic-ops service/ops-console 5080:80"
 echo "  # then browse to http://localhost:5080"
+echo "Inspect Scribe timelines and post-incident records with:"
+echo "  kubectl port-forward --namespace agentic-ops service/scribe-service 8090:80"
+echo "  curl -s localhost:8090/incidents/<incident-id>/record | jq ."

@@ -1,62 +1,61 @@
-# IncidentApi hosts the full incident workflow in-process, including the mock
-# ExecutionService (dry-run), and publishes lifecycle events to the
-# incident-pubsub component consumed by ScribeService. It never talks to the
-# Kubernetes API in this milestone, so its service account carries no RBAC
-# bindings.
+# ScribeService is an asynchronous Pub/Sub consumer: it subscribes to
+# incident-lifecycle events through the incident-pubsub Dapr component, builds
+# ordered timelines, and serves deterministic post-incident record drafts. It
+# is never on the critical remediation path, so an outage here cannot block
+# investigation, remediation, or verification. It never talks to the
+# Kubernetes API, so its service account carries no RBAC bindings.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: incident-api
+  name: scribe-service
   namespace: agentic-ops
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: incident-api
+  name: scribe-service
   namespace: agentic-ops
   labels:
-    app.kubernetes.io/name: incident-api
+    app.kubernetes.io/name: scribe-service
     app.kubernetes.io/part-of: azure-agentic-ops-lab
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: incident-api
+      app.kubernetes.io/name: scribe-service
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: incident-api
+        app.kubernetes.io/name: scribe-service
         app.kubernetes.io/part-of: azure-agentic-ops-lab
       annotations:
         dapr.io/enabled: "true"
-        dapr.io/app-id: "incident-api"
+        dapr.io/app-id: "scribe-service"
         dapr.io/app-port: "8080"
     spec:
-      serviceAccountName: incident-api
+      serviceAccountName: scribe-service
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: incident-api
-          image: incident-api:local
+        - name: scribe-service
+          image: scribe-service:local
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 8080
           env:
-            - name: Dapr__Enabled
-              value: "true"
             - name: DOTNET_EnableDiagnostics
               value: "0"
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
+              cpu: 50m
+              memory: 96Mi
             limits:
-              cpu: 500m
-              memory: 512Mi
+              cpu: 250m
+              memory: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -78,13 +77,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: incident-api
+  name: scribe-service
   namespace: agentic-ops
   labels:
-    app.kubernetes.io/name: incident-api
+    app.kubernetes.io/name: scribe-service
 spec:
   selector:
-    app.kubernetes.io/name: incident-api
+    app.kubernetes.io/name: scribe-service
   ports:
     - name: http
       port: 80

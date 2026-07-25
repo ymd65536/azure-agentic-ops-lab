@@ -16,6 +16,7 @@
     <ProjectReference Include="..\..\src\BuildingBlocks\Contracts\Contracts.csproj" />
     <ProjectReference Include="..\..\src\IncidentApi\IncidentApi.csproj" />
     <ProjectReference Include="..\..\src\IncidentWorkflow\IncidentWorkflow.csproj" />
+    <ProjectReference Include="..\..\src\ScribeService\ScribeService.csproj" />
   </ItemGroup>
 
 </Project>
