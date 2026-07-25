@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AzureAgenticOps.Observability</RootNamespace>
+    <AssemblyName>AzureAgenticOps.Observability</AssemblyName>
+  </PropertyGroup>
+
+</Project>

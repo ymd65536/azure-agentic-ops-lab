@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks\Contracts\Contracts.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\AgentRuntime\AgentRuntime.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\Safety\Safety.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <RootNamespace>AzureAgenticOps.Tier1SreAgent</RootNamespace>
+    <AssemblyName>AzureAgenticOps.Tier1SreAgent</AssemblyName>
+  </PropertyGroup>
+
+</Project>

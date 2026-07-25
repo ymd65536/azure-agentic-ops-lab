@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0",
+  "entries": [
+    {
+      "entryId": "runbook-routing-config",
+      "entryType": "runbook",
+      "title": "Known routing configuration error on sample-api",
+      "keywords": ["routing", "route", "configuration", "config", "404", "no matching route", "sample-api"],
+      "content": "When sample-api returns a spike of 404 responses immediately after a routing configuration deployment and logs contain 'no matching route', a route was removed by the deployment. Remediation: roll back the demo deployment to the previous revision. Verification: the affected path returns HTTP 200.",
+      "relatedActionTypes": ["RollbackDemoDeployment"]
+    },
+    {
+      "entryId": "runbook-404-triage",
+      "entryType": "runbook",
+      "title": "Triage for elevated HTTP 404 rates",
+      "keywords": ["404", "not found", "cdn", "cache", "migration", "links"],
+      "content": "Elevated 404 rates have several distinct causes: stale client links, CDN cache serving removed paths, or an incomplete content migration. Compare the requested paths against the deployed content inventory before proposing remediation. Restarting the web tier does not resolve missing content.",
+      "relatedActionTypes": ["QueryLogs", "CollectDiagnostics"]
+    },
+    {
+      "entryId": "runbook-dependency-timeout",
+      "entryType": "runbook",
+      "title": "External dependency timeout handling",
+      "keywords": ["timeout", "dependency", "upstream", "external", "latency"],
+      "content": "When an external dependency times out, restarting the local service does not resolve the failure and repeated restarts must be avoided. Collect diagnostics, confirm the dependency status, and escalate with bounded retries. Terminate safely if the dependency remains unavailable.",
+      "relatedActionTypes": ["CollectDiagnostics", "QueryResourceStatus"]
+    },
+    {
+      "entryId": "prior-inc-2026-014",
+      "entryType": "prior-incident",
+      "title": "Prior incident: routing regression after config rollout",
+      "keywords": ["routing", "config", "rollout", "routeRemoved", "sample-api"],
+      "content": "Incident inc-2026-014 was resolved by rolling back a sample-api deployment after a routing configuration rollout removed a route and produced 'no matching route' errors. Tier 1 resolved it without escalation using the RollbackDemoDeployment action.",
+      "relatedActionTypes": ["RollbackDemoDeployment"]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks\Contracts\Contracts.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\Observability\Observability.csproj" />
+    <ProjectReference Include="..\RuleEvaluator\RuleEvaluator.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <RootNamespace>AzureAgenticOps.IncidentWorkflow</RootNamespace>
+    <AssemblyName>AzureAgenticOps.IncidentWorkflow</AssemblyName>
+  </PropertyGroup>
+
+</Project>

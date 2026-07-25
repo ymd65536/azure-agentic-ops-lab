@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0",
+  "evidenceId": "ev-002-deploy",
+  "incidentId": "inc-002",
+  "evidenceType": "deployment",
+  "source": "deployment-history",
+  "content": "deployment history sample-web: last deployment 9 days ago (revision 17, healthy); content-service migration job completed with 3 warnings 2 days ago",
+  "collectedAt": "2026-07-02T14:06:40+00:00",
+  "attributes": {
+    "namespace": "demo"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "classification": "known",
+  "matchedPatternName": "external-dependency-timeout",
+  "minimumConfidence": 0.7,
+  "recommendedDisposition": "escalate",
+  "escalateToTier2": true,
+  "proposedActionType": null
+}

@@ -1,0 +1,9 @@
+{
+  "finalState": "AwaitingApproval",
+  "tier2Invoked": true,
+  "requiresApproval": true,
+  "maxActionAttempts": 0,
+  "expectedActionTypes": [],
+  "verificationOutcome": "inconclusive",
+  "notes": "No known pattern matches; multiple hypotheses (stale links, CDN cache, incomplete content migration) require Tier 2 analysis. Any proposed remediation must wait for human approval."
+}

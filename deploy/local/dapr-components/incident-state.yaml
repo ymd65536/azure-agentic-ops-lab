@@ -1,0 +1,18 @@
+# Logical state store for application state outside workflow history. The name
+# "incident-state" is stable across environments; the local implementation is
+# Redis and the Azure environment may substitute an Azure-supported state store.
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: incident-state
+  namespace: agentic-ops
+spec:
+  type: state.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: redis.agentic-ops.svc.cluster.local:6379
+    - name: actorStateStore
+      value: "true"
+scopes:
+  - incident-api

@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks\Contracts\Contracts.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\Safety\Safety.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <RootNamespace>AzureAgenticOps.ExecutionService</RootNamespace>
+    <AssemblyName>AzureAgenticOps.ExecutionService</AssemblyName>
+  </PropertyGroup>
+
+</Project>

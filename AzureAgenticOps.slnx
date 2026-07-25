@@ -1,0 +1,25 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ExecutionService/ExecutionService.csproj" />
+    <Project Path="src/IncidentApi/IncidentApi.csproj" />
+    <Project Path="src/IncidentWorkflow/IncidentWorkflow.csproj" />
+    <Project Path="src/OpsConsole/OpsConsole.csproj" />
+    <Project Path="src/RuleEvaluator/RuleEvaluator.csproj" />
+    <Project Path="src/ScribeService/ScribeService.csproj" />
+    <Project Path="src/Tier1SreAgent/Tier1SreAgent.csproj" />
+    <Project Path="src/Tier2SreAgent/Tier2SreAgent.csproj" />
+    <Project Path="src/VerificationService/VerificationService.csproj" />
+  </Folder>
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/AgentRuntime/AgentRuntime.csproj" />
+    <Project Path="src/BuildingBlocks/Contracts/Contracts.csproj" />
+    <Project Path="src/BuildingBlocks/Observability/Observability.csproj" />
+    <Project Path="src/BuildingBlocks/Safety/Safety.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ContractTests/ContractTests.csproj" />
+    <Project Path="tests/IntegrationTests/IntegrationTests.csproj" />
+    <Project Path="tests/UnitTests/UnitTests.csproj" />
+    <Project Path="tests/WorkflowTests/WorkflowTests.csproj" />
+  </Folder>
+</Solution>

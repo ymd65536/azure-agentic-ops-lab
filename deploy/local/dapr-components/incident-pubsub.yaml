@@ -1,0 +1,16 @@
+# Logical Pub/Sub component for incident lifecycle events. The name
+# "incident-pubsub" is stable across environments; the local implementation is
+# Redis Streams and the Azure environment may substitute Azure Service Bus.
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: incident-pubsub
+  namespace: agentic-ops
+spec:
+  type: pubsub.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: redis.agentic-ops.svc.cluster.local:6379
+scopes:
+  - incident-api

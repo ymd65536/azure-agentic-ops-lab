@@ -1,0 +1,8 @@
+@* A colored badge for a workflow state so terminal outcomes stand out. *@
+
+<span class="badge badge-@(State.ToString().ToLowerInvariant())">@State</span>
+@code {
+    /// <summary>The workflow state to display.</summary>
+    [Parameter]
+    public IncidentWorkflowState State { get; set; }
+}

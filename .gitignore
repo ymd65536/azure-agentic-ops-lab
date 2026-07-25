@@ -1,1 +1,8 @@
 .env
+bin/
+obj/
+*.user
+.vs/
+
+# Collected scenario results (scripts/collect-results.sh)
+results/

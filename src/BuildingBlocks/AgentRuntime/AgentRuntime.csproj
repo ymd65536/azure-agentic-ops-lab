@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Contracts\Contracts.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <RootNamespace>AzureAgenticOps.AgentRuntime</RootNamespace>
+    <AssemblyName>AzureAgenticOps.AgentRuntime</AssemblyName>
+  </PropertyGroup>
+
+</Project>
