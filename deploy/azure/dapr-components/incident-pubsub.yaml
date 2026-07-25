@@ -1,0 +1,25 @@
+# Logical Pub/Sub component for incident lifecycle events. The name
+# "incident-pubsub" is identical to the local environment; only the underlying
+# implementation changes to Azure Service Bus topics. Authentication uses
+# Microsoft Entra Workload ID through the azureClientId of the federated
+# workload identity — no connection string or key is stored anywhere.
+#
+# Replace the placeholders before applying:
+#   <SERVICE_BUS_HOSTNAME>      infra output `serviceBusHostName`
+#   <WORKLOAD_CLIENT_ID>        infra output `workloadIdentityClientId`
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: incident-pubsub
+  namespace: agentic-ops
+spec:
+  type: pubsub.azure.servicebus.topics
+  version: v1
+  metadata:
+    - name: namespaceName
+      value: "<SERVICE_BUS_HOSTNAME>"
+    - name: azureClientId
+      value: "<WORKLOAD_CLIENT_ID>"
+scopes:
+  - incident-api
+  - scribe-service
