@@ -1,9 +1,9 @@
 {
   "finalState": "Resolved",
-  "tier2Invoked": false,
+  "tier2Invoked": true,
   "requiresApproval": true,
   "maxActionAttempts": 1,
   "expectedActionTypes": ["RollbackDemoDeployment"],
   "verificationOutcome": "passed",
-  "notes": "Tier 1 fast path: the known routing configuration error is remediated by rolling back the demo deployment. RollbackDemoDeployment is medium risk, so approval is required by default policy."
+  "notes": "The known routing configuration error is medium risk, so the rule fast path cannot remediate it. Tier 1 reviews the rule-based handling and proposes rolling back the demo deployment; Tier 2 assesses the execution risk and a human approves before the rollback runs."
 }

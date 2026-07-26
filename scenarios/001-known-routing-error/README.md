@@ -10,9 +10,14 @@ pattern with a deterministic remediation.
 
 * The rule evaluator matches the pattern `known-routing-configuration-error`.
 * The incident is classified as `known` with high confidence.
-* Tier 1 can handle the incident; no Tier 2 escalation occurs.
-* A low/medium-risk predefined action (`RollbackDemoDeployment`) is proposed.
-* Verification passes after mock execution.
+* The proposed action `RollbackDemoDeployment` is medium risk, so the rule fast
+  path may not execute it and the incident is shared with Tier 1 together with a
+  summary of the rule-based handling.
+* Tier 1 reviews that summary and proposes a remediation plan.
+* The plan is shared with Tier 2, which assesses the execution risk and shares
+  the assessment with the operations console.
+* A human is asked to approve command execution before anything runs.
+* Verification passes after the approved mock execution.
 
 ## Files
 

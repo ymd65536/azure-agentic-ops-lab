@@ -65,6 +65,57 @@ public class ContractSerializationTests
     }
 
     [Fact]
+    public void RuleHandlingSummary_SerializesToStableJson()
+    {
+        var summary = new RuleHandlingSummary(
+            SchemaVersions.V1,
+            "inc-001",
+            IncidentClassification.Known,
+            "known-routing-configuration-error",
+            0.9,
+            "RollbackDemoDeployment",
+            AutoExecutionAllowed: false,
+            ExecutionOutcome: null,
+            VerificationOutcome: null,
+            "The proposed action is medium risk and requires human approval.",
+            "A known routing configuration pattern matched.");
+
+        string json = ContractSerialization.Serialize(summary);
+
+        Assert.Equal(
+            "{\"schemaVersion\":\"1.0\",\"incidentId\":\"inc-001\",\"classification\":\"known\"," +
+            "\"matchedPatternName\":\"known-routing-configuration-error\",\"confidence\":0.9," +
+            "\"proposedActionType\":\"RollbackDemoDeployment\",\"autoExecutionAllowed\":false," +
+            "\"escalationReason\":\"The proposed action is medium risk and requires human approval.\"," +
+            "\"ruleReasonSummary\":\"A known routing configuration pattern matched.\"}",
+            json);
+    }
+
+    [Fact]
+    public void RuleHandlingSummary_RoundTripsExecutionAndVerificationOutcomes()
+    {
+        var summary = new RuleHandlingSummary(
+            SchemaVersions.V1,
+            "inc-001",
+            IncidentClassification.Known,
+            "known-demo-workload-crashloop",
+            0.95,
+            "RestartDemoWorkload",
+            AutoExecutionAllowed: true,
+            ExecutionOutcome.Succeeded,
+            VerificationOutcome.Failed,
+            "The rule fast-path remediation did not produce a verified resolution.",
+            "A known crash-loop pattern matched.");
+
+        RuleHandlingSummary roundTripped = ContractSerialization.Deserialize<RuleHandlingSummary>(
+            ContractSerialization.Serialize(summary));
+
+        Assert.Equal(summary, roundTripped);
+        Assert.Contains("\"executionOutcome\":\"succeeded\"", ContractSerialization.Serialize(summary), StringComparison.Ordinal);
+        Assert.Contains("\"verificationOutcome\":\"failed\"", ContractSerialization.Serialize(summary), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InvestigationResult_RoundTripsThroughJson()
     {
         var result = new InvestigationResult(

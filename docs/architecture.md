@@ -96,17 +96,25 @@ declarative `RuleDefinition` data (no LLM). Decision table:
 | more than one rule | `ambiguous` | escalate, never guess |
 | zero rules | `unknown` | escalate, never guess |
 
+Incidents the rule-based path cannot resolve — no rule matched, policy declined
+automatic execution, or the rule remediation was not verified — are shared with
+Tier 1 together with a deterministic `RuleHandlingSummary` describing which
+incident was handled, what the rule-based path executed, and why it escalated.
+
 `DefaultRuleCatalog` contains the Milestone 1 rules:
-`known-routing-configuration-error` (Tier 1 fast path, proposes
+`known-routing-configuration-error` (proposes
 `RollbackDemoDeployment`, one attempt max) and `external-dependency-timeout`
 (known but escalates; proposes no local action so restart loops are
 impossible).
 
 ### Tier1SreAgent
 
-`Tier1SreAgent` is the fast investigation path. It searches the Insights
-knowledge base, loads the `tier1-investigation` prompt, and asks the model for
-a structured `InvestigationResult`. Deterministic code — not the model — has
+`Tier1SreAgent` is the fast investigation path for incidents the rule-based path
+could not resolve. It receives the `RuleHandlingSummary`, searches the Insights
+knowledge base, loads the `tier1-investigation` prompt, and asks the model
+(Microsoft Foundry in `RemoteModel` mode) for a structured
+`InvestigationResult` that reviews the rule-based handling and, when possible,
+proposes a remediation plan. Deterministic code — not the model — has
 final authority over the outcome:
 
 * structured output is validated (schema version, incident id, confidence
@@ -118,6 +126,10 @@ final authority over the outcome:
   the result is escalated
 * a `resolve` recommendation without a proposed deterministic action is
   escalated
+
+A Tier 1 remediation plan is not executed on Tier 1 authority: by default
+(`IncidentWorkflowOptions.Tier1PlansRequireTier2RiskAssessment`) the workflow
+publishes the plan and shares it with Tier 2 for an execution-risk assessment.
 
 `InsightsCapability` is a Tier 1 sub-capability, not an agent. It performs
 deterministic keyword search over the version-controlled fixtures in
@@ -136,6 +148,12 @@ enforce the risk floor:
   classification across all actions; the model can raise but never lower it
 * medium- and high-risk plans always require approval; low-risk plans require
   approval unless automatic low-risk execution is explicitly enabled
+
+The workflow publishes the assessment as the `Tier2RiskAssessmentShared`
+lifecycle event (risk level, commands, rollback availability, reasoning) and,
+by default (`IncidentWorkflowOptions.Tier2PlansAlwaysRequireApproval`), asks a
+human whether to approve command execution before anything runs, emitting
+`ApprovalRequested`.
 
 ### ExecutionService
 
@@ -160,8 +178,10 @@ unconfigured targets instead of guessing.
 A .NET Blazor (Interactive Server) application that makes a run of the
 controlled-autonomy lifecycle visible without reading raw JSON from the shell.
 It renders the workflow state pipeline, the recorded lifecycle timeline
-(component, outcome, attempt number, and details per event), the human approval
-gate, and the scenario catalog.
+(component, outcome, attempt number, and details per event), the agent handoff
+summary (rule-based handling shared with Tier 1, the Tier 1 remediation plan,
+and the Tier 2 execution-risk assessment), the human approval gate, and the
+scenario catalog.
 
 The console is strictly a presentation and human-decision surface:
 

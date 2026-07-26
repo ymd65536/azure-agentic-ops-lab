@@ -100,16 +100,17 @@ API プロセスを停止すると、インメモリのワークフロー状態�
 
 | コマンド | 再現する経路 | 実行例の最終状態 |
 | --- | --- | --- |
-| `scripts/run-scenario.sh 001-known-routing-error` | 既知パターン一致 → Tier 1 → 承認 → 実行 → 検証成功 | `resolved` |
+| `scripts/run-scenario.sh 001-known-routing-error` | 既知パターン一致 → ルールベースでは解決不可 → Tier 1 → Tier 2 のリスク評価 → 承認 → 実行 → 検証成功 | `resolved` |
 | `scripts/run-scenario.sh 001-known-routing-error --reject` | 人間が却下し、アクションを実行しない | `rejected` |
 | `scripts/run-scenario.sh 001-known-routing-error --no-decision` | 承認イベントが届かず `awaitingApproval` のまま待機し、タイムアウトで安全に停止（スクリプト側は `--timeout` で打ち切り） | `awaitingApproval` → 停止 |
-| `scripts/run-scenario.sh 002-ambiguous-404-increase` | 未知パターン → Tier 2 エスカレーション → 計画 → 実行 → 検証 | `resolved` |
+| `scripts/run-scenario.sh 002-ambiguous-404-increase` | 未知パターン → Tier 2 エスカレーション → 計画 → 承認 → 実行 → 検証 | `resolved` |
 | `scripts/run-scenario.sh 003-dependency-timeout --verification-value degraded` | 復旧後も検証が失敗し、無限リトライせず有界で停止 | `failed` |
 | `scripts/run-scenario.sh 004-unknown-latency-regression` | 未知パターン → Tier 2 エスカレーション → 承認 → 実行 → 検証（Foundry の `Shadow` / `RemoteModel` モード評価向け） | `resolved` |
 | `scripts/run-scenario.sh 005-known-crashloop-restart` | 既知パターン一致 → ルール高速パスで自動実行 → 検証成功（モデル呼び出し・Tier 1 / Tier 2・承認なし） | `resolved` |
 
 各シナリオの設計上の期待値は `scenarios/<name>/expected-result.json` に固定されており、`dotnet test`（ワークフロー／統合テスト）で検証されます。
-承認要否は `ActionPolicyEvaluator` のリスク判定が決定するため、Tier 2 が低リスクアクションのみを提案した場合は承認待ちにならずに実行へ進みます。
+ルールベースで解決できないインシデントは Tier 1 に共有されます。Tier 1 は「どのインシデントに対応したか」「ルールベースでどのような対応を実行したか」を要約し（`Tier1RuleHandoffShared`）、修正のための実行計画を提示します（`Tier1RemediationPlanProposed`）。その計画は Tier 2 に共有され、Tier 2 がコマンド実行のリスクを評価してコンソールに共有し（`Tier2RiskAssessmentShared`）、既定では必ず人間へ実行の可否を確認します（`ApprovalRequested`）。
+既定値は `IncidentWorkflowOptions` の `Tier1PlansRequireTier2RiskAssessment` と `Tier2PlansAlwaysRequireApproval` で制御でき、両方を無効化するとデモ用に低リスクアクションの自動実行を再現できます。
 
 ### ブラウザで再現を確認する
 
@@ -179,7 +180,7 @@ ASPNETCORE_URLS=http://localhost:5080 dotnet run --project src/OpsConsole
 | 画面 | 内容 |
 | --- | --- |
 | `/`（Incidents） | 実行中・完了済みインシデントの一覧と現在状態。承認待ちは強調表示。既定2秒間隔で自動更新 |
-| `/incidents/{incidentId}` | ワークフローのステートパイプライン（通過済み・現在・終端状態）、ライフサイクルタイムライン（各イベントの component / outcome / attempt / details）、承認待ち時の承認・却下ボタン |
+| `/incidents/{incidentId}` | ワークフローのステートパイプライン（通過済み・現在・終端状態）、エージェントの対応内容（Tier 1 に共有されたルールベース対応の要約 / Tier 1 の実行計画 / Tier 2 のリスク評価）、ライフサイクルタイムライン（各イベントの component / outcome / attempt / details）、承認待ち時の承認・却下ボタン |
 | `/scenarios` | バージョン管理されたシナリオの一覧と実行。モック検証値（healthy / unhealthy）を選んで成功・失敗パスを再現できる |
 
 設定（`OpsConsole` セクション、環境変数では `OpsConsole__IncidentApiBaseUrl` など）:
@@ -295,7 +296,7 @@ Dapr コンポーネントの論理名（`incident-pubsub` / `incident-state`）
 
 | シナリオ | 内容 | 期待結果 |
 | --- | --- | --- |
-| [001-known-routing-error](scenarios/001-known-routing-error/) | 既知のルーティング設定ミスによる404 | 既知パターン一致、Tier 1で解決、低〜中リスクのモック復旧 |
+| [001-known-routing-error](scenarios/001-known-routing-error/) | 既知のルーティング設定ミスによる404 | 既知パターン一致、Tier 1 が調査・計画、Tier 2 のリスク評価と人間の承認を経てモック復旧 |
 | [002-ambiguous-404-increase](scenarios/002-ambiguous-404-increase/) | 原因が曖昧な404増加 | unknown判定、Tier 2エスカレーション、人間の承認が必要 |
 | [003-dependency-timeout](scenarios/003-dependency-timeout/) | 外部依存タイムアウト | 再起動の無限ループを回避、エスカレーションまたは安全な停止 |
 | [004-unknown-latency-regression](scenarios/004-unknown-latency-regression/) | 原因が競合する断続的レイテンシ悪化（Foundry リモートモデル評価用） | unknown判定、Tier 2エスカレーション、`Shadow`/`RemoteModel` モードで Foundry 推論を評価、人間の承認が必要 |

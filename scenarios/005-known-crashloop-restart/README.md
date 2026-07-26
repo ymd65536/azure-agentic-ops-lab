@@ -12,8 +12,9 @@ This scenario is the first step of the escalation-ladder demo:
 
 ```text
 005: rule fast path       -> resolved by RuleEvaluation
-004: unknown incident     -> Tier 1 investigation (Foundry) summarizes the cause
-002: ambiguous incident   -> Tier 2 planning and human approval
+004: unknown incident     -> Tier 1 investigation (Foundry) summarizes the
+                             rule-based handling and proposes a plan
+002: ambiguous incident   -> Tier 2 risk assessment and human approval
 ```
 
 ## Expected behavior

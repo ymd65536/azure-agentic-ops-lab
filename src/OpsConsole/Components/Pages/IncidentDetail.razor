@@ -39,6 +39,63 @@ else
         }
     </section>
 
+    IncidentLifecycleEvent? ruleHandoff = LatestEvent("Tier1RuleHandoffShared");
+    IncidentLifecycleEvent? tier1Plan = LatestEvent("Tier1RemediationPlanProposed");
+    IncidentLifecycleEvent? riskAssessment = LatestEvent("Tier2RiskAssessmentShared");
+
+    @if (ruleHandoff is not null || tier1Plan is not null || riskAssessment is not null)
+    {
+        <section class="card">
+            <h2>エージェントの対応内容</h2>
+            @if (ruleHandoff is not null)
+            {
+                <h3>Tier 1 が引き継いだ内容（ルールベース対応の要約）</h3>
+                <dl class="timeline-details">
+                    <dt>対象インシデント</dt>
+                    <dd>@Detail(ruleHandoff, "incidentTitle") (@Detail(ruleHandoff, "severity"))</dd>
+                    <dt>影響サービス</dt>
+                    <dd>@Detail(ruleHandoff, "affectedServices")</dd>
+                    <dt>ルール分類</dt>
+                    <dd>@Detail(ruleHandoff, "ruleClassification") / @Detail(ruleHandoff, "ruleMatchedPattern")</dd>
+                    <dt>ルールベースで実行した対応</dt>
+                    <dd>
+                        @(string.IsNullOrEmpty(Detail(ruleHandoff, "ruleProposedActionType"))
+                            ? "実行可能な決定論的アクションはありませんでした。"
+                            : $"{Detail(ruleHandoff, "ruleProposedActionType")} (自動実行: {Detail(ruleHandoff, "ruleAutoExecutionAllowed")}, 実行結果: {Detail(ruleHandoff, "ruleExecutionOutcome")}, 検証: {Detail(ruleHandoff, "ruleVerificationOutcome")})")
+                    </dd>
+                    <dt>Tier 1 へ引き継いだ理由</dt>
+                    <dd>@Detail(ruleHandoff, "escalationReason")</dd>
+                </dl>
+            }
+            @if (tier1Plan is not null)
+            {
+                <h3>Tier 1 が立てた修正の実行計画</h3>
+                <dl class="timeline-details">
+                    <dt>アクション</dt>
+                    <dd>@Detail(tier1Plan, "actionType") → @Detail(tier1Plan, "target")</dd>
+                    <dt>根拠</dt>
+                    <dd>@Detail(tier1Plan, "reasoningSummary")</dd>
+                </dl>
+            }
+            @if (riskAssessment is not null)
+            {
+                <h3>Tier 2 によるコマンド実行のリスク評価</h3>
+                <dl class="timeline-details">
+                    <dt>リスクレベル</dt>
+                    <dd>@Detail(riskAssessment, "riskLevel")</dd>
+                    <dt>実行されるコマンド</dt>
+                    <dd>@Detail(riskAssessment, "commands")</dd>
+                    <dt>承認の要否</dt>
+                    <dd>@Detail(riskAssessment, "approvalRequired")</dd>
+                    <dt>ロールバックの可否</dt>
+                    <dd>@Detail(riskAssessment, "rollbackAvailable")</dd>
+                    <dt>評価内容</dt>
+                    <dd>@Detail(riskAssessment, "reasoningSummary")</dd>
+                </dl>
+            }
+        </section>
+    }
+
     @if (_run.CurrentState == IncidentWorkflowState.AwaitingApproval)
     {
         <section class="card card-attention">
@@ -47,6 +104,14 @@ else
                 ワークフローは外部からの承認イベントを待機しています。この計画を人間の判断なしに
                 実行できないと決定したのは、エージェントではなくポリシーです。
             </p>
+            @if (LatestEvent("ApprovalRequested") is IncidentLifecycleEvent approvalRequest)
+            {
+                <p>
+                    <strong>@Detail(approvalRequest, "question")</strong><br />
+                    リスクレベル: @Detail(approvalRequest, "riskLevel") /
+                    実行されるコマンド: @Detail(approvalRequest, "commands")
+                </p>
+            }
             <label>
                 承認者
                 <input type="text" @bind="_approver" />
@@ -204,6 +269,14 @@ else
             _decisionInFlight = false;
         }
     }
+
+    private IncidentLifecycleEvent? LatestEvent(string eventType) =>
+        _timeline.LastOrDefault(item => string.Equals(item.EventType, eventType, StringComparison.Ordinal));
+
+    private static string Detail(IncidentLifecycleEvent lifecycleEvent, string key) =>
+        lifecycleEvent.Details is not null && lifecycleEvent.Details.TryGetValue(key, out string? value)
+            ? value
+            : string.Empty;
 
     private static string OutcomeClass(IncidentLifecycleEvent lifecycleEvent) =>
         lifecycleEvent.Outcome?.ToLowerInvariant() switch
