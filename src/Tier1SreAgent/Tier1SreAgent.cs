@@ -45,7 +45,7 @@ public sealed record Tier1InvestigationOutcome(
 public sealed class Tier1SreAgent
 {
     private const string PromptName = "tier1-investigation";
-    private const string PromptVersion = "1.0";
+    private const string PromptVersion = "1.1";
 
     private readonly IAgentModelClient _modelClient;
     private readonly IPromptStore _promptStore;
@@ -77,6 +77,11 @@ public sealed class Tier1SreAgent
     /// </summary>
     /// <param name="incident">The incident under investigation.</param>
     /// <param name="evidence">The evidence collected for the incident.</param>
+    /// <param name="ruleHandling">
+    /// The deterministic summary of the rule-based handling that was shared with
+    /// Tier 1, describing which incident was handled, what the rule-based path
+    /// executed, and why the incident was escalated.
+    /// </param>
     /// <param name="correlationId">The correlation identifier for observability.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The investigation outcome.</returns>
@@ -86,11 +91,13 @@ public sealed class Tier1SreAgent
     public async Task<Tier1InvestigationOutcome> InvestigateAsync(
         Incident incident,
         IReadOnlyList<IncidentEvidence> evidence,
+        RuleHandlingSummary ruleHandling,
         string correlationId,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(incident);
         ArgumentNullException.ThrowIfNull(evidence);
+        ArgumentNullException.ThrowIfNull(ruleHandling);
         ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
 
         InsightsResult insights = _insights.Search(incident, evidence);
@@ -100,6 +107,7 @@ public sealed class Tier1SreAgent
         {
             incident,
             evidence,
+            ruleHandling,
             insights,
             allowedActionTypes = ActionTypeCatalog.All,
         });

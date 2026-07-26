@@ -82,11 +82,14 @@ public sealed class ScribeServiceTests
         // simulate duplicate Pub/Sub delivery, and verify the record.
         var activities = new FakeWorkflowActivities();
         var publisher = new AzureAgenticOps.IncidentWorkflow.InMemoryLifecycleEventPublisher();
+        var approvalGate = new FakeApprovalGate();
         var orchestrator = new AzureAgenticOps.IncidentWorkflow.IncidentWorkflowOrchestrator(
-            activities, new FakeApprovalGate(), publisher);
+            activities, approvalGate, publisher);
         activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
         activities.Tier1Results.Enqueue(() =>
             WorkflowTestData.Tier1Result(AgentDisposition.Resolve, 0.95, WorkflowTestData.Action()));
+        activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: true));
+        approvalGate.Decisions.Enqueue(new AzureAgenticOps.IncidentWorkflow.ApprovalDecision(AzureAgenticOps.IncidentWorkflow.ApprovalOutcome.Approved, "oncall", "Reviewed"));
         activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
 
         await orchestrator.RunAsync(WorkflowTestData.Incident(), "wf-001", "corr-001", CancellationToken.None);

@@ -266,10 +266,10 @@ public sealed class DaprIncidentWorkflow : Workflow<DaprIncidentWorkflowInput, I
                 new PrepareRuleRemediationActivityInput(incident, ruleResult, correlationId));
 
         public Task<InvestigationResult> RunTier1InvestigationAsync(
-            Incident incident, IReadOnlyList<IncidentEvidence> evidence, string correlationId, CancellationToken cancellationToken) =>
+            Incident incident, IReadOnlyList<IncidentEvidence> evidence, RuleHandlingSummary ruleHandling, string correlationId, CancellationToken cancellationToken) =>
             _context.CallActivityAsync<InvestigationResult>(
                 nameof(Tier1InvestigationActivity),
-                new Tier1InvestigationActivityInput(incident, [.. evidence], correlationId));
+                new Tier1InvestigationActivityInput(incident, [.. evidence], ruleHandling, correlationId));
 
         public Task<RemediationPlan> RunTier2PlanningAsync(
             Incident incident, InvestigationResult tier1Handoff, IReadOnlyList<IncidentEvidence> evidence, string correlationId, CancellationToken cancellationToken) =>
@@ -352,8 +352,9 @@ public sealed record PrepareRuleRemediationActivityInput(Incident Incident, Rule
 /// <summary>The input of <see cref="Tier1InvestigationActivity"/>.</summary>
 /// <param name="Incident">The incident under investigation.</param>
 /// <param name="Evidence">The evidence collected for the incident.</param>
+/// <param name="RuleHandling">The deterministic summary of the rule-based handling shared with Tier 1.</param>
 /// <param name="CorrelationId">The correlation identifier for observability.</param>
-public sealed record Tier1InvestigationActivityInput(Incident Incident, IncidentEvidence[] Evidence, string CorrelationId);
+public sealed record Tier1InvestigationActivityInput(Incident Incident, IncidentEvidence[] Evidence, RuleHandlingSummary RuleHandling, string CorrelationId);
 
 /// <summary>The input of <see cref="Tier2PlanningActivity"/>.</summary>
 /// <param name="Incident">The incident under investigation.</param>
@@ -434,7 +435,7 @@ public sealed class Tier1InvestigationActivity : WorkflowActivity<Tier1Investiga
 
     /// <inheritdoc />
     public override Task<InvestigationResult> RunAsync(WorkflowActivityContext context, Tier1InvestigationActivityInput input) =>
-        _activities.RunTier1InvestigationAsync(input.Incident, input.Evidence, input.CorrelationId, CancellationToken.None);
+        _activities.RunTier1InvestigationAsync(input.Incident, input.Evidence, input.RuleHandling, input.CorrelationId, CancellationToken.None);
 }
 
 /// <summary>Runs Tier 2 planning through the shared activity implementation.</summary>

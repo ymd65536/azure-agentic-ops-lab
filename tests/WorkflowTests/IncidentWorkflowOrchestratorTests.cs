@@ -16,15 +16,25 @@ public sealed class IncidentWorkflowOrchestratorTests
         CreateOrchestrator(options).RunAsync(
             WorkflowTestData.Incident(), "wf-001", "corr-001", CancellationToken.None);
 
+    /// <summary>
+    /// Options for the legacy demo behavior in which Tier 1 remediates directly
+    /// and a plan that policy considers approval-free executes automatically.
+    /// </summary>
+    private static readonly IncidentWorkflowOptions AutonomousDemoOptions = IncidentWorkflowOptions.Default with
+    {
+        Tier1PlansRequireTier2RiskAssessment = false,
+        Tier2PlansAlwaysRequireApproval = false,
+    };
+
     [Fact]
-    public async Task Tier1FastPath_ResolvesIncident()
+    public async Task Tier1FastPath_WhenRiskAssessmentIsDisabled_ResolvesIncident()
     {
         _activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
         _activities.Tier1Results.Enqueue(() =>
             WorkflowTestData.Tier1Result(AgentDisposition.Resolve, 0.95, WorkflowTestData.Action()));
         _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
 
-        IncidentWorkflowResult result = await RunAsync();
+        IncidentWorkflowResult result = await RunAsync(AutonomousDemoOptions);
 
         Assert.Equal(IncidentWorkflowState.Resolved, result.FinalState);
         Assert.Equal(0, _activities.Tier2Invocations);
@@ -79,6 +89,8 @@ public sealed class IncidentWorkflowOrchestratorTests
             CanAutoExecute: false, Action: null, "The action requires human approval.");
         _activities.Tier1Results.Enqueue(() =>
             WorkflowTestData.Tier1Result(AgentDisposition.Resolve, 0.95, WorkflowTestData.Action()));
+        _activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: true));
+        _approvalGate.Decisions.Enqueue(new ApprovalDecision(ApprovalOutcome.Approved, "oncall", "Reviewed"));
         _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
 
         IncidentWorkflowResult result = await RunAsync();
@@ -87,6 +99,9 @@ public sealed class IncidentWorkflowOrchestratorTests
         Assert.Equal(1, _activities.RuleRemediationPreparations);
         Assert.Equal(1, _activities.Tier1Invocations);
         Assert.Contains(IncidentWorkflowState.Tier1Investigation, result.StateHistory);
+        RuleHandlingSummary handoff = Assert.Single(_activities.Tier1RuleHandoffs);
+        Assert.False(handoff.AutoExecutionAllowed);
+        Assert.Contains("approval", handoff.EscalationReason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -100,6 +115,7 @@ public sealed class IncidentWorkflowOrchestratorTests
         _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Failed));
         _activities.Tier1Results.Enqueue(() => WorkflowTestData.Tier1Result(AgentDisposition.Escalate, 0.4));
         _activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: false));
+        _approvalGate.Decisions.Enqueue(new ApprovalDecision(ApprovalOutcome.Approved, "oncall", "Reviewed"));
         _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
 
         IncidentWorkflowResult result = await RunAsync();
@@ -109,6 +125,10 @@ public sealed class IncidentWorkflowOrchestratorTests
         Assert.Equal(1, _activities.Tier1Invocations);
         Assert.Equal(1, _activities.Tier2Invocations);
         Assert.Single(_activities.ExecutedActions, executed => executed.Action.IdempotencyKey == ruleAction.IdempotencyKey);
+        RuleHandlingSummary handoff = Assert.Single(_activities.Tier1RuleHandoffs);
+        Assert.True(handoff.AutoExecutionAllowed);
+        Assert.Equal(ExecutionOutcome.Succeeded, handoff.ExecutionOutcome);
+        Assert.Equal(VerificationOutcome.Failed, handoff.VerificationOutcome);
     }
 
     [Fact]
@@ -123,6 +143,7 @@ public sealed class IncidentWorkflowOrchestratorTests
         };
         _activities.Tier1Results.Enqueue(() => WorkflowTestData.Tier1Result(AgentDisposition.Escalate, 0.4));
         _activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: false));
+        _approvalGate.Decisions.Enqueue(new ApprovalDecision(ApprovalOutcome.Approved, "oncall", "Reviewed"));
         _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
 
         IncidentWorkflowResult result = await RunAsync();
@@ -147,6 +168,73 @@ public sealed class IncidentWorkflowOrchestratorTests
         Assert.Equal(1, _activities.Tier2Invocations);
         Assert.Contains(IncidentWorkflowState.AwaitingApproval, result.StateHistory);
         Assert.True(_activities.ExecutedActions.Single().ApprovalGranted);
+    }
+
+    [Fact]
+    public async Task Tier1Plan_IsSharedWithTier2ForRiskAssessment_AndAsksForHumanApproval()
+    {
+        _activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
+        _activities.Tier1Results.Enqueue(() =>
+            WorkflowTestData.Tier1Result(AgentDisposition.Resolve, 0.95, WorkflowTestData.Action()));
+        _activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: false));
+        _approvalGate.Decisions.Enqueue(new ApprovalDecision(ApprovalOutcome.Approved, "oncall", "Reviewed"));
+        _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
+
+        IncidentWorkflowResult result = await RunAsync();
+
+        Assert.Equal(IncidentWorkflowState.Resolved, result.FinalState);
+        Assert.Equal(1, _activities.Tier2Invocations);
+        Assert.Contains(IncidentWorkflowState.AwaitingApproval, result.StateHistory);
+        Assert.True(_activities.ExecutedActions.Single().ApprovalGranted);
+
+        Assert.Contains(_publisher.Events, item => item.EventType == "Tier1RuleHandoffShared");
+        Assert.Contains(_publisher.Events, item => item.EventType == "Tier1RemediationPlanProposed");
+        Assert.Contains(_publisher.Events, item => item.EventType == "Tier1PlanSharedWithTier2");
+        Assert.Contains(_publisher.Events, item => item.EventType == "Tier2RiskAssessmentShared");
+        Assert.Contains(_publisher.Events, item => item.EventType == "ApprovalRequested");
+    }
+
+    [Fact]
+    public async Task Tier1RuleHandoff_SummarizesTheRuleBasedHandling()
+    {
+        _activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
+        _activities.RuleResult = () => WorkflowTestData.KnownRuleResult();
+        _activities.RuleRemediationResult = () => new RuleRemediationDecision(
+            CanAutoExecute: false, Action: null, "The action requires human approval.");
+        _activities.Tier1Results.Enqueue(() => WorkflowTestData.Tier1Result(AgentDisposition.Escalate, 0.4));
+        _activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: true));
+        _approvalGate.Decisions.Enqueue(new ApprovalDecision(ApprovalOutcome.Rejected, "oncall", "Too risky"));
+
+        await RunAsync();
+
+        RuleHandlingSummary handoff = Assert.Single(_activities.Tier1RuleHandoffs);
+        Assert.Equal("inc-001", handoff.IncidentId);
+        Assert.Equal(IncidentClassification.Known, handoff.Classification);
+        Assert.Equal("known-demo-workload-crashloop", handoff.MatchedPatternName);
+        Assert.Equal("RestartDemoWorkload", handoff.ProposedActionType);
+        Assert.False(handoff.AutoExecutionAllowed);
+        Assert.Null(handoff.ExecutionOutcome);
+
+        IncidentLifecycleEvent shared = Assert.Single(
+            _publisher.Events, item => item.EventType == "Tier1RuleHandoffShared");
+        Assert.NotNull(shared.Details);
+        Assert.Equal("Demo incident", shared.Details!["incidentTitle"]);
+        Assert.Equal("known-demo-workload-crashloop", shared.Details["ruleMatchedPattern"]);
+        Assert.Equal("The action requires human approval.", shared.Details["escalationReason"]);
+    }
+
+    [Fact]
+    public async Task Tier2Plan_WithoutModelRequestedApproval_StillAsksAHuman()
+    {
+        _activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
+        _activities.Tier1Results.Enqueue(() => WorkflowTestData.Tier1Result(AgentDisposition.Escalate, 0.4));
+        _activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: false));
+        _approvalGate.Decisions.Enqueue(new ApprovalDecision(ApprovalOutcome.Rejected, "oncall", "Not now"));
+
+        IncidentWorkflowResult result = await RunAsync();
+
+        Assert.Equal(IncidentWorkflowState.Rejected, result.FinalState);
+        Assert.Empty(_activities.ExecutedActions);
     }
 
     [Fact]
@@ -187,6 +275,7 @@ public sealed class IncidentWorkflowOrchestratorTests
         _activities.Tier1Results.Enqueue(() => WorkflowTestData.Tier1Result(AgentDisposition.Escalate, 0.4));
         _activities.Tier2Results.Enqueue(() =>
             WorkflowTestData.Plan(requiresApproval: false, actions: [planAction], rollback: [rollbackAction]));
+        _approvalGate.Decisions.Enqueue(new ApprovalDecision(ApprovalOutcome.Approved, "oncall", "Reviewed"));
         _activities.ExecutionResults.Enqueue(action =>
             WorkflowTestData.Execution("inc-001", action, ExecutionOutcome.Failed, "boom"));
         _activities.ExecutionResults.Enqueue(action =>
@@ -208,6 +297,7 @@ public sealed class IncidentWorkflowOrchestratorTests
         _activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
         _activities.Tier1Results.Enqueue(() => WorkflowTestData.Tier1Result(AgentDisposition.Escalate, 0.4));
         _activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: false));
+        _approvalGate.Decisions.Enqueue(new ApprovalDecision(ApprovalOutcome.Approved, "oncall", "Reviewed"));
         _activities.ExecutionResults.Enqueue(action =>
             WorkflowTestData.Execution("inc-001", action, ExecutionOutcome.Rejected, "policy rejected"));
 
@@ -227,7 +317,7 @@ public sealed class IncidentWorkflowOrchestratorTests
         _activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: false));
         _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
 
-        IncidentWorkflowResult result = await RunAsync();
+        IncidentWorkflowResult result = await RunAsync(AutonomousDemoOptions);
 
         Assert.Equal(IncidentWorkflowState.Resolved, result.FinalState);
         Assert.Equal(1, _activities.Tier2Invocations);
@@ -241,6 +331,7 @@ public sealed class IncidentWorkflowOrchestratorTests
         _activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
         _activities.Tier1Results.Enqueue(() => WorkflowTestData.Tier1Result(AgentDisposition.Escalate, 0.4));
         _activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: false));
+        _approvalGate.Decisions.Enqueue(new ApprovalDecision(ApprovalOutcome.Approved, "oncall", "Reviewed"));
         _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Failed));
 
         IncidentWorkflowResult result = await RunAsync(options);
@@ -259,7 +350,7 @@ public sealed class IncidentWorkflowOrchestratorTests
             WorkflowTestData.Tier1Result(AgentDisposition.Resolve, 0.95, WorkflowTestData.Action()));
         _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
 
-        IncidentWorkflowResult result = await RunAsync();
+        IncidentWorkflowResult result = await RunAsync(AutonomousDemoOptions);
 
         Assert.Equal(IncidentWorkflowState.Resolved, result.FinalState);
         Assert.Equal(2, _activities.Tier1Invocations);
@@ -286,6 +377,7 @@ public sealed class IncidentWorkflowOrchestratorTests
         _activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
         _activities.Tier1Results.Enqueue(() => WorkflowTestData.Tier1Result(AgentDisposition.Escalate, 0.4));
         _activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: false));
+        _approvalGate.Decisions.Enqueue(new ApprovalDecision(ApprovalOutcome.Approved, "oncall", "Reviewed"));
         _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Inconclusive));
 
         IncidentWorkflowResult result = await RunAsync(options);
@@ -299,6 +391,8 @@ public sealed class IncidentWorkflowOrchestratorTests
         _activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
         _activities.Tier1Results.Enqueue(() =>
             WorkflowTestData.Tier1Result(AgentDisposition.Resolve, 0.95, WorkflowTestData.Action()));
+        _activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: true));
+        _approvalGate.Decisions.Enqueue(new ApprovalDecision(ApprovalOutcome.Approved, "oncall", "Reviewed"));
         _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
 
         await RunAsync();
@@ -325,6 +419,8 @@ public sealed class IncidentWorkflowOrchestratorTests
         _activities.EvidenceResults.Enqueue(() => [WorkflowTestData.Evidence()]);
         _activities.Tier1Results.Enqueue(() =>
             WorkflowTestData.Tier1Result(AgentDisposition.Resolve, 0.95, WorkflowTestData.Action()));
+        _activities.Tier2Results.Enqueue(() => WorkflowTestData.Plan(requiresApproval: true));
+        _approvalGate.Decisions.Enqueue(new ApprovalDecision(ApprovalOutcome.Approved, "oncall", "Reviewed"));
         _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
 
         IncidentWorkflowResult result = await orchestrator.RunAsync(

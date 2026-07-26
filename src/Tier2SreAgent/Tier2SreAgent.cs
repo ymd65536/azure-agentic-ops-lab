@@ -44,7 +44,7 @@ public sealed record Tier2PlanningOutcome(
 public sealed class Tier2SreAgent
 {
     private const string PromptName = "tier2-remediation";
-    private const string PromptVersion = "1.0";
+    private const string PromptVersion = "1.1";
 
     private readonly IAgentModelClient _modelClient;
     private readonly IPromptStore _promptStore;

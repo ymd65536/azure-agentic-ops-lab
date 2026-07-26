@@ -18,6 +18,19 @@ public sealed class Tier1SreAgentTests
         return new Tier1SreAgent(modelClient, promptStore, insights, options);
     }
 
+    private static readonly RuleHandlingSummary RuleHandling = new(
+        SchemaVersions.V1,
+        Scenario.Incident.IncidentId,
+        IncidentClassification.Known,
+        "known-routing-configuration-error",
+        0.9,
+        ActionTypeCatalog.RollbackDemoDeployment,
+        AutoExecutionAllowed: false,
+        ExecutionOutcome: null,
+        VerificationOutcome: null,
+        "The proposed action is medium risk and requires human approval, so the rule fast path did not execute it.",
+        "A known routing configuration pattern matched.");
+
     private static InvestigationResult ValidResult(
         double confidence = 0.9,
         AgentDisposition disposition = AgentDisposition.Resolve,
@@ -50,7 +63,7 @@ public sealed class Tier1SreAgentTests
         modelClient.EnqueueResponse(ValidResult());
 
         Tier1InvestigationOutcome outcome = await CreateAgent(modelClient)
-            .InvestigateAsync(Scenario.Incident, Scenario.Evidence, "corr-1", CancellationToken.None);
+            .InvestigateAsync(Scenario.Incident, Scenario.Evidence, RuleHandling, "corr-1", CancellationToken.None);
 
         Assert.Equal(AgentDisposition.Resolve, outcome.Result.RecommendedDisposition);
         Assert.NotNull(outcome.Result.ProposedAction);
@@ -65,7 +78,7 @@ public sealed class Tier1SreAgentTests
         modelClient.EnqueueResponse(ValidResult(confidence: 0.4));
 
         Tier1InvestigationOutcome outcome = await CreateAgent(modelClient)
-            .InvestigateAsync(Scenario.Incident, Scenario.Evidence, "corr-1", CancellationToken.None);
+            .InvestigateAsync(Scenario.Incident, Scenario.Evidence, RuleHandling, "corr-1", CancellationToken.None);
 
         Assert.Equal(AgentDisposition.Escalate, outcome.Result.RecommendedDisposition);
         Assert.Null(outcome.Result.ProposedAction);
@@ -83,7 +96,7 @@ public sealed class Tier1SreAgentTests
         modelClient.EnqueueResponse(ValidResult(proposedAction: rogueAction));
 
         Tier1InvestigationOutcome outcome = await CreateAgent(modelClient)
-            .InvestigateAsync(Scenario.Incident, Scenario.Evidence, "corr-1", CancellationToken.None);
+            .InvestigateAsync(Scenario.Incident, Scenario.Evidence, RuleHandling, "corr-1", CancellationToken.None);
 
         Assert.Equal(AgentDisposition.Escalate, outcome.Result.RecommendedDisposition);
         Assert.Null(outcome.Result.ProposedAction);
@@ -96,7 +109,7 @@ public sealed class Tier1SreAgentTests
         modelClient.EnqueueResponse(ValidResult() with { ProposedAction = null });
 
         Tier1InvestigationOutcome outcome = await CreateAgent(modelClient)
-            .InvestigateAsync(Scenario.Incident, Scenario.Evidence, "corr-1", CancellationToken.None);
+            .InvestigateAsync(Scenario.Incident, Scenario.Evidence, RuleHandling, "corr-1", CancellationToken.None);
 
         Assert.Equal(AgentDisposition.Escalate, outcome.Result.RecommendedDisposition);
     }
@@ -109,7 +122,7 @@ public sealed class Tier1SreAgentTests
         modelClient.EnqueueResponse(ValidResult());
 
         Tier1InvestigationOutcome outcome = await CreateAgent(modelClient)
-            .InvestigateAsync(Scenario.Incident, Scenario.Evidence, "corr-1", CancellationToken.None);
+            .InvestigateAsync(Scenario.Incident, Scenario.Evidence, RuleHandling, "corr-1", CancellationToken.None);
 
         Assert.Equal(2, modelClient.InvocationCount);
         Assert.Equal(AgentDisposition.Resolve, outcome.Result.RecommendedDisposition);
@@ -124,7 +137,7 @@ public sealed class Tier1SreAgentTests
 
         await Assert.ThrowsAsync<ModelResponseValidationException>(() =>
             CreateAgent(modelClient).InvestigateAsync(
-                Scenario.Incident, Scenario.Evidence, "corr-1", CancellationToken.None));
+                Scenario.Incident, Scenario.Evidence, RuleHandling, "corr-1", CancellationToken.None));
         Assert.Equal(2, modelClient.InvocationCount);
     }
 
@@ -137,6 +150,6 @@ public sealed class Tier1SreAgentTests
 
         await Assert.ThrowsAsync<ModelResponseValidationException>(() =>
             CreateAgent(modelClient).InvestigateAsync(
-                Scenario.Incident, Scenario.Evidence, "corr-1", CancellationToken.None));
+                Scenario.Incident, Scenario.Evidence, RuleHandling, "corr-1", CancellationToken.None));
     }
 }

@@ -129,11 +129,12 @@ public sealed class InProcessWorkflowActivities : IIncidentWorkflowActivities
     public async Task<InvestigationResult> RunTier1InvestigationAsync(
         Incident incident,
         IReadOnlyList<IncidentEvidence> evidence,
+        RuleHandlingSummary ruleHandling,
         string correlationId,
         CancellationToken cancellationToken)
     {
         Tier1InvestigationOutcome outcome = await _tier1Agent
-            .InvestigateAsync(incident, evidence, correlationId, cancellationToken)
+            .InvestigateAsync(incident, evidence, ruleHandling, correlationId, cancellationToken)
             .ConfigureAwait(false);
         return outcome.Result;
     }

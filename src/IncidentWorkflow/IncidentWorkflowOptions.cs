@@ -11,6 +11,16 @@ namespace AzureAgenticOps.IncidentWorkflow;
 /// <param name="MaxVerificationAttempts">The maximum number of verification attempts per remediation.</param>
 /// <param name="MaxRollbackAttemptsPerAction">The maximum number of execution attempts per rollback action.</param>
 /// <param name="ApprovalTimeout">The maximum time to wait for a human approval decision.</param>
+/// <param name="Tier1PlansRequireTier2RiskAssessment">
+/// Whether a remediation plan proposed by Tier 1 must be shared with Tier 2 for a
+/// risk assessment instead of being executed on the Tier 1 fast path. Enabled by
+/// default: incidents that the rule-based path could not resolve are never
+/// remediated without an independent risk assessment.
+/// </param>
+/// <param name="Tier2PlansAlwaysRequireApproval">
+/// Whether every Tier 2 remediation plan must be approved by a human before any
+/// command is executed. Enabled by default; policy, not the agent, decides.
+/// </param>
 public sealed record IncidentWorkflowOptions(
     int MaxEvidenceCollectionAttempts = 2,
     int MaxTier1Attempts = 2,
@@ -18,7 +28,9 @@ public sealed record IncidentWorkflowOptions(
     int MaxExecutionAttemptsPerAction = 2,
     int MaxVerificationAttempts = 2,
     int MaxRollbackAttemptsPerAction = 1,
-    TimeSpan ApprovalTimeout = default)
+    TimeSpan ApprovalTimeout = default,
+    bool Tier1PlansRequireTier2RiskAssessment = true,
+    bool Tier2PlansAlwaysRequireApproval = true)
 {
     /// <summary>Gets the default workflow options with a 15 minute approval timeout.</summary>
     public static IncidentWorkflowOptions Default { get; } = new();

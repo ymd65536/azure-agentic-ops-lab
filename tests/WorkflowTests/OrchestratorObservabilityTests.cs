@@ -59,8 +59,8 @@ public sealed class OrchestratorObservabilityTests : IDisposable
         _metrics.Dispose();
     }
 
-    private Task<IncidentWorkflowResult> RunAsync() =>
-        new IncidentWorkflowOrchestrator(_activities, _approvalGate, _publisher, metrics: _metrics)
+    private Task<IncidentWorkflowResult> RunAsync(IncidentWorkflowOptions? options = null) =>
+        new IncidentWorkflowOrchestrator(_activities, _approvalGate, _publisher, options, metrics: _metrics)
             .RunAsync(WorkflowTestData.Incident(), "wf-obs-001", CorrelationId, CancellationToken.None);
 
     [Fact]
@@ -71,7 +71,11 @@ public sealed class OrchestratorObservabilityTests : IDisposable
             WorkflowTestData.Tier1Result(AgentDisposition.Resolve, 0.95, WorkflowTestData.Action()));
         _activities.VerificationResults.Enqueue(() => WorkflowTestData.Verification(VerificationOutcome.Passed));
 
-        IncidentWorkflowResult result = await RunAsync();
+        IncidentWorkflowResult result = await RunAsync(IncidentWorkflowOptions.Default with
+        {
+            Tier1PlansRequireTier2RiskAssessment = false,
+            Tier2PlansAlwaysRequireApproval = false,
+        });
 
         Assert.Equal(IncidentWorkflowState.Resolved, result.FinalState);
 

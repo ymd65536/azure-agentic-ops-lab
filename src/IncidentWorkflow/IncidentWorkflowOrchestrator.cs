@@ -152,6 +152,15 @@ public sealed class IncidentWorkflowOrchestrator
             ["matchedPattern"] = ruleResult.MatchedPatternName ?? string.Empty,
         }, cancellationToken).ConfigureAwait(false);
 
+        // The rule-based handling is summarized deterministically so that Tier 1
+        // always learns which incident was handled and what the rule-based path
+        // actually did before the incident was shared with it.
+        bool ruleAutoExecutionAllowed = false;
+        ExecutionOutcome? ruleExecutionOutcome = null;
+        VerificationOutcome? ruleVerificationOutcome = null;
+        string escalationReason =
+            "Rule evaluation did not produce a deterministic remediation for this incident.";
+
         // Rule fast path: a known pattern with an approved deterministic action
         // resolves the incident without any model call. Policy decides whether
         // the action may auto-execute; anything else escalates to Tier 1.
@@ -173,12 +182,16 @@ public sealed class IncidentWorkflowOrchestrator
                     ["reason"] = decision?.Reason ?? "The rule remediation preparation activity failed.",
                 }, cancellationToken).ConfigureAwait(false);
 
+            escalationReason = decision?.Reason ?? "The rule remediation preparation activity failed.";
+
             if (decision is { CanAutoExecute: true, Action: not null })
             {
+                ruleAutoExecutionAllowed = true;
                 await TransitionAsync(run, IncidentWorkflowState.Executing, cancellationToken).ConfigureAwait(false);
                 ExecutionResult? ruleExecution = await ExecuteWithRetryAsync(
                     run, decision.Action, approvalGranted: false,
                     _options.MaxExecutionAttemptsPerAction, cancellationToken).ConfigureAwait(false);
+                ruleExecutionOutcome = ruleExecution?.Outcome;
 
                 if (ruleExecution is not null && ruleExecution.Outcome is not ExecutionOutcome.Failed and not ExecutionOutcome.Rejected)
                 {
@@ -187,6 +200,7 @@ public sealed class IncidentWorkflowOrchestrator
                         run, "Verification", 1,
                         token => _activities.VerifyTier1RemediationAsync(run.Incident, decision.Action, run.CorrelationId, token),
                         cancellationToken).ConfigureAwait(false);
+                    ruleVerificationOutcome = ruleVerification?.Outcome;
 
                     await EmitAsync(run, "VerificationCompleted", ruleVerification?.Outcome.ToString() ?? "error", null, cancellationToken).ConfigureAwait(false);
                     if (ruleVerification is not null && ruleVerification.Outcome == VerificationOutcome.Passed)
@@ -202,12 +216,43 @@ public sealed class IncidentWorkflowOrchestrator
 
                 // Execution or verification did not succeed: escalate to Tier 1
                 // investigation instead of retrying a rule remediation blindly.
+                escalationReason = "The rule fast-path remediation did not produce a verified resolution.";
                 await EmitAsync(run, "RuleRemediationEscalated", "tier1", new Dictionary<string, string>
                 {
-                    ["reason"] = "The rule fast-path remediation did not produce a verified resolution.",
+                    ["reason"] = escalationReason,
                 }, cancellationToken).ConfigureAwait(false);
             }
         }
+
+        // Everything that the rule-based path could not resolve is shared with
+        // Tier 1, together with a factual summary of the rule-based handling.
+        var ruleHandling = new RuleHandlingSummary(
+            SchemaVersions.V1,
+            run.Incident.IncidentId,
+            ruleResult.Classification,
+            ruleResult.MatchedPatternName,
+            ruleResult.Confidence,
+            ruleResult.ProposedActionType,
+            ruleAutoExecutionAllowed,
+            ruleExecutionOutcome,
+            ruleVerificationOutcome,
+            escalationReason,
+            ruleResult.ReasonSummary);
+
+        await EmitAsync(run, "Tier1RuleHandoffShared", ruleHandling.Classification.ToString(), new Dictionary<string, string>
+        {
+            ["incidentTitle"] = run.Incident.Title,
+            ["severity"] = run.Incident.Severity,
+            ["affectedServices"] = string.Join(", ", run.Incident.AffectedServices),
+            ["ruleClassification"] = ruleHandling.Classification.ToString(),
+            ["ruleMatchedPattern"] = ruleHandling.MatchedPatternName ?? string.Empty,
+            ["ruleProposedActionType"] = ruleHandling.ProposedActionType ?? string.Empty,
+            ["ruleAutoExecutionAllowed"] = ruleHandling.AutoExecutionAllowed ? "true" : "false",
+            ["ruleExecutionOutcome"] = ruleHandling.ExecutionOutcome?.ToString() ?? "none",
+            ["ruleVerificationOutcome"] = ruleHandling.VerificationOutcome?.ToString() ?? "none",
+            ["ruleReasonSummary"] = ruleHandling.RuleReasonSummary,
+            ["escalationReason"] = ruleHandling.EscalationReason,
+        }, cancellationToken).ConfigureAwait(false);
 
         // Tier 1 investigation loop, bounded by Tier 1 and evidence attempt counts.
         InvestigationResult? tier1Result = null;
@@ -221,7 +266,7 @@ public sealed class IncidentWorkflowOrchestrator
             run.Tier1Attempts++;
             tier1Result = await RunActivityAsync(
                 run, "Tier1Investigation", run.Tier1Attempts,
-                token => _activities.RunTier1InvestigationAsync(run.Incident, run.Evidence, run.CorrelationId, token),
+                token => _activities.RunTier1InvestigationAsync(run.Incident, run.Evidence, ruleHandling, run.CorrelationId, token),
                 cancellationToken).ConfigureAwait(false);
 
             if (tier1Result is null)
@@ -266,38 +311,62 @@ public sealed class IncidentWorkflowOrchestrator
             break;
         }
 
-        // Tier 1 fast path: an approved deterministic action resolves the incident.
+        // Tier 1 produced a remediation plan for the incident the rule-based path
+        // could not resolve. By default the plan is shared with Tier 2 for an
+        // independent risk assessment instead of being executed directly.
         if (tier1Result.RecommendedDisposition == AgentDisposition.Resolve && tier1Result.ProposedAction is not null)
         {
-            await TransitionAsync(run, IncidentWorkflowState.Executing, cancellationToken).ConfigureAwait(false);
-            ExecutionResult? execution = await ExecuteWithRetryAsync(
-                run, tier1Result.ProposedAction, approvalGranted: false,
-                _options.MaxExecutionAttemptsPerAction, cancellationToken).ConfigureAwait(false);
-
-            if (execution is null || execution.Outcome is ExecutionOutcome.Failed or ExecutionOutcome.Rejected)
+            await EmitAsync(run, "Tier1RemediationPlanProposed", tier1Result.ProposedAction.ActionType, new Dictionary<string, string>
             {
-                await FailAsync(run,
-                    $"Tier 1 remediation action was not executed: {execution?.Message ?? "the execution activity failed"}.",
+                ["actionType"] = tier1Result.ProposedAction.ActionType,
+                ["target"] = FormatTarget(tier1Result.ProposedAction.Target),
+                ["maxExecutionCount"] = tier1Result.ProposedAction.MaxExecutionCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["summary"] = tier1Result.Summary,
+                ["reasoningSummary"] = tier1Result.ReasoningSummary,
+            }, cancellationToken).ConfigureAwait(false);
+
+            if (_options.Tier1PlansRequireTier2RiskAssessment)
+            {
+                await EmitAsync(run, "Tier1PlanSharedWithTier2", "risk_assessment_requested", new Dictionary<string, string>
+                {
+                    ["actionType"] = tier1Result.ProposedAction.ActionType,
+                    ["reason"] = "Tier 2 must assess the execution risk of the Tier 1 plan before any command runs.",
+                }, cancellationToken).ConfigureAwait(false);
+
+                await TransitionAsync(run, IncidentWorkflowState.Tier2Investigation, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await TransitionAsync(run, IncidentWorkflowState.Executing, cancellationToken).ConfigureAwait(false);
+                ExecutionResult? execution = await ExecuteWithRetryAsync(
+                    run, tier1Result.ProposedAction, approvalGranted: false,
+                    _options.MaxExecutionAttemptsPerAction, cancellationToken).ConfigureAwait(false);
+
+                if (execution is null || execution.Outcome is ExecutionOutcome.Failed or ExecutionOutcome.Rejected)
+                {
+                    await FailAsync(run,
+                        $"Tier 1 remediation action was not executed: {execution?.Message ?? "the execution activity failed"}.",
+                        cancellationToken).ConfigureAwait(false);
+                    return;
+                }
+
+                await TransitionAsync(run, IncidentWorkflowState.Verifying, cancellationToken).ConfigureAwait(false);
+                VerificationResult? verification = await RunActivityAsync(
+                    run, "Verification", 1,
+                    token => _activities.VerifyTier1RemediationAsync(run.Incident, tier1Result.ProposedAction, run.CorrelationId, token),
                     cancellationToken).ConfigureAwait(false);
-                return;
+
+                if (verification is not null && verification.Outcome == VerificationOutcome.Passed)
+                {
+                    await ResolveAsync(run, "Tier 1 remediation succeeded and verification passed.", cancellationToken).ConfigureAwait(false);
+                    return;
+                }
+
+                // A failed verification after Tier 1 remediation escalates to Tier 2.
+                _metrics?.RecordVerificationFailure(verification?.Outcome.ToString() ?? "error");
+                await EmitAsync(run, "VerificationCompleted", verification?.Outcome.ToString() ?? "error", null, cancellationToken).ConfigureAwait(false);
+                await TransitionAsync(run, IncidentWorkflowState.Tier2Investigation, cancellationToken).ConfigureAwait(false);
             }
-
-            await TransitionAsync(run, IncidentWorkflowState.Verifying, cancellationToken).ConfigureAwait(false);
-            VerificationResult? verification = await RunActivityAsync(
-                run, "Verification", 1,
-                token => _activities.VerifyTier1RemediationAsync(run.Incident, tier1Result.ProposedAction, run.CorrelationId, token),
-                cancellationToken).ConfigureAwait(false);
-
-            if (verification is not null && verification.Outcome == VerificationOutcome.Passed)
-            {
-                await ResolveAsync(run, "Tier 1 remediation succeeded and verification passed.", cancellationToken).ConfigureAwait(false);
-                return;
-            }
-
-            // A failed verification after Tier 1 remediation escalates to Tier 2.
-            _metrics?.RecordVerificationFailure(verification?.Outcome.ToString() ?? "error");
-            await EmitAsync(run, "VerificationCompleted", verification?.Outcome.ToString() ?? "error", null, cancellationToken).ConfigureAwait(false);
-            await TransitionAsync(run, IncidentWorkflowState.Tier2Investigation, cancellationToken).ConfigureAwait(false);
         }
 
         // Tier 2 deep reasoning loop, bounded by the Tier 2 attempt count.
@@ -341,11 +410,34 @@ public sealed class IncidentWorkflowOrchestrator
                 ["rootCauseHypothesis"] = plan.RootCauseHypothesis.Description,
             }, cancellationToken).ConfigureAwait(false);
 
+            bool approvalRequired = plan.RequiresApproval || _options.Tier2PlansAlwaysRequireApproval;
+
+            // Tier 2 shares its execution-risk assessment so the console can show
+            // a human what would run and how risky policy considers it to be.
+            await EmitAsync(run, "Tier2RiskAssessmentShared", plan.RiskLevel.ToString(), new Dictionary<string, string>
+            {
+                ["riskLevel"] = plan.RiskLevel.ToString(),
+                ["approvalRequired"] = approvalRequired ? "true" : "false",
+                ["commands"] = FormatActions(plan.Actions),
+                ["rollbackAvailable"] = plan.Rollback.Count > 0 ? "true" : "false",
+                ["verificationStepCount"] = plan.Verification.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["rootCauseHypothesis"] = plan.RootCauseHypothesis.Description,
+                ["reasoningSummary"] = plan.ReasoningSummary,
+            }, cancellationToken).ConfigureAwait(false);
+
             bool approvalGranted = false;
-            if (plan.RequiresApproval)
+            if (approvalRequired)
             {
                 // Human approval is an external workflow event with a bounded wait.
                 await TransitionAsync(run, IncidentWorkflowState.AwaitingApproval, cancellationToken).ConfigureAwait(false);
+                await EmitAsync(run, "ApprovalRequested", plan.RiskLevel.ToString(), new Dictionary<string, string>
+                {
+                    ["question"] = "Approve execution of the assessed commands?",
+                    ["riskLevel"] = plan.RiskLevel.ToString(),
+                    ["commands"] = FormatActions(plan.Actions),
+                    ["timeoutSeconds"] = _options.EffectiveApprovalTimeout.TotalSeconds.ToString("0", System.Globalization.CultureInfo.InvariantCulture),
+                }, cancellationToken).ConfigureAwait(false);
+
                 ApprovalDecision decision;
                 using (Activity? approvalSpan = AgenticOpsActivitySource.StartSpan(SpanNames.ApprovalWait, run.Correlation))
                 {
@@ -571,8 +663,15 @@ public sealed class IncidentWorkflowOrchestrator
         }
     }
 
-    private static string GetSpanName(string activityName) => activityName switch
-    {
+    private static string FormatTarget(ActionTarget target) =>
+        $"{target.Namespace}/{target.ResourceType}/{target.ResourceName}";
+
+    private static string FormatActions(IReadOnlyList<RemediationAction> actions) =>
+        actions.Count == 0
+            ? "none"
+            : string.Join(", ", actions.Select(action => $"{action.ActionType} -> {FormatTarget(action.Target)}"));
+
+    private static string GetSpanName(string activityName) => activityName switch    {
         "EvidenceCollection" => SpanNames.EvidenceCollection,
         "RuleEvaluation" => SpanNames.RuleEvaluation,
         "Tier1Investigation" => SpanNames.Tier1Investigation,

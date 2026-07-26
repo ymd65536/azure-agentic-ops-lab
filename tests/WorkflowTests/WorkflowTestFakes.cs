@@ -70,10 +70,13 @@ internal sealed class FakeWorkflowActivities : IIncidentWorkflowActivities
         return Task.FromResult(decision);
     }
 
+    public List<RuleHandlingSummary> Tier1RuleHandoffs { get; } = [];
+
     public Task<InvestigationResult> RunTier1InvestigationAsync(
-        Incident incident, IReadOnlyList<IncidentEvidence> evidence, string correlationId, CancellationToken cancellationToken)
+        Incident incident, IReadOnlyList<IncidentEvidence> evidence, RuleHandlingSummary ruleHandling, string correlationId, CancellationToken cancellationToken)
     {
         Tier1Invocations++;
+        Tier1RuleHandoffs.Add(ruleHandling);
         return Task.FromResult(Tier1Results.Dequeue()());
     }
 

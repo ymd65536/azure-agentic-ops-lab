@@ -84,6 +84,36 @@ public sealed record InvestigationResult(
     string ReasoningSummary);
 
 /// <summary>
+/// A deterministic summary of what the rule-based path did with an incident
+/// before it was shared with Tier 1. The summary is produced by workflow code,
+/// never by a model, so Tier 1 always receives a factual account of the
+/// rule-based handling and of the reason the incident was escalated.
+/// </summary>
+/// <param name="SchemaVersion">The contract schema version.</param>
+/// <param name="IncidentId">The incident this summary describes.</param>
+/// <param name="Classification">The classification produced by rule evaluation.</param>
+/// <param name="MatchedPatternName">The matched known pattern, when a single rule matched.</param>
+/// <param name="Confidence">The rule evaluation confidence, from 0.0 to 1.0.</param>
+/// <param name="ProposedActionType">The action type the matched rule proposed, if any.</param>
+/// <param name="AutoExecutionAllowed">Whether policy allowed the rule fast path to execute the action automatically.</param>
+/// <param name="ExecutionOutcome">The outcome of the rule fast-path execution, when one was attempted.</param>
+/// <param name="VerificationOutcome">The outcome of the rule fast-path verification, when one ran.</param>
+/// <param name="EscalationReason">A deterministic explanation of why Tier 1 was asked to take over.</param>
+/// <param name="RuleReasonSummary">The reason summary produced by rule evaluation.</param>
+public sealed record RuleHandlingSummary(
+    string SchemaVersion,
+    string IncidentId,
+    IncidentClassification Classification,
+    string? MatchedPatternName,
+    double Confidence,
+    string? ProposedActionType,
+    bool AutoExecutionAllowed,
+    ExecutionOutcome? ExecutionOutcome,
+    VerificationOutcome? VerificationOutcome,
+    string EscalationReason,
+    string RuleReasonSummary);
+
+/// <summary>
 /// The target of a remediation action.
 /// </summary>
 /// <param name="Namespace">The Kubernetes namespace or logical environment of the target.</param>

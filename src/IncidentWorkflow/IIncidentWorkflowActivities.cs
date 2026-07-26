@@ -68,12 +68,14 @@ public interface IIncidentWorkflowActivities
     /// <summary>Runs the Tier 1 investigation.</summary>
     /// <param name="incident">The incident under investigation.</param>
     /// <param name="evidence">The evidence collected for the incident.</param>
+    /// <param name="ruleHandling">The deterministic summary of the rule-based handling shared with Tier 1.</param>
     /// <param name="correlationId">The correlation identifier for observability.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The validated Tier 1 investigation result.</returns>
     Task<InvestigationResult> RunTier1InvestigationAsync(
         Incident incident,
         IReadOnlyList<IncidentEvidence> evidence,
+        RuleHandlingSummary ruleHandling,
         string correlationId,
         CancellationToken cancellationToken);
 

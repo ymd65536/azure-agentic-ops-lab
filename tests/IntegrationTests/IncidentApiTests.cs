@@ -142,9 +142,11 @@ public sealed class IncidentApiTests : IClassFixture<WebApplicationFactory<Progr
         using HttpResponseMessage accepted = await PostJsonAsync(client, "/incidents", new IncidentSubmission(incident, evidence));
         Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
 
-        // No verification override is configured, so verification can never pass
-        // and the bounded workflow must terminate in Failed instead of looping.
-        IncidentRunStatus final = await WaitForCompletionAsync(client, incident.IncidentId);
+        // Every Tier 2 planning round presents its commands to a human before
+        // execution. No verification override is configured, so verification can
+        // never pass and the bounded workflow must terminate in Failed instead of
+        // looping over restarts.
+        IncidentRunStatus final = await ApproveEachPlanUntilCompletionAsync(client, incident.IncidentId);
         Assert.Equal(IncidentWorkflowState.Failed, final.Result!.FinalState);
         Assert.Contains(IncidentWorkflowState.Tier2Investigation, final.Result.StateHistory);
     }
@@ -221,6 +223,30 @@ public sealed class IncidentApiTests : IClassFixture<WebApplicationFactory<Progr
         }
 
         Assert.Fail($"The workflow for incident '{incidentId}' did not reach state {state} within {CompletionTimeout}.");
+    }
+
+    private static async Task<IncidentRunStatus> ApproveEachPlanUntilCompletionAsync(HttpClient client, string incidentId)
+    {
+        DateTimeOffset deadline = DateTimeOffset.UtcNow + CompletionTimeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            IncidentRunStatus status = await GetStatusAsync(client, incidentId);
+            if (status.IsCompleted)
+            {
+                return status;
+            }
+
+            if (status.CurrentState == IncidentWorkflowState.AwaitingApproval)
+            {
+                using HttpResponseMessage approval = await PostJsonAsync(
+                    client, $"/incidents/{incidentId}/approval",
+                    new ApprovalSubmission(ApprovalOutcome.Approved, "sre-lead", "Bounded remediation attempt approved."));
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+        }
+
+        throw new TimeoutException($"The workflow for incident '{incidentId}' did not complete within {CompletionTimeout}.");
     }
 
     private static async Task<IncidentRunStatus> WaitForCompletionAsync(HttpClient client, string incidentId)
